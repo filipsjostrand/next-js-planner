@@ -12,3 +12,38 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// prisma/schema.prisma
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String?   // Hashet lösenord
+  emailVerified DateTime? // Tidpunkt för verifiering
+  role          Role      @default(USER)
+  todos         Todo[]
+  postIts       PostIt[]
+}
+
+model Todo {
+  id          String   @id @default(cuid())
+  title       String
+  date        DateTime // Sparar både datum och tid
+  color       String   @default("#ffffff") // Bakgrundsfärg
+  completed   Boolean  @default(false)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PostIt {
+  id        String   @id @default(cuid())
+  content   String
+  color     String   @default("#fef08a") // Klassisk post-it gul
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
