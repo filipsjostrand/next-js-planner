@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { db } from "@/lib/db"; // Kontrollera att sökvägen stämmer
 import { WeeklyView } from "@/components/dashboard/weekly-view";
 import { PostItGrid } from "@/components/dashboard/post-it-grid";
 import { Button } from "@/components/ui/button";
@@ -8,11 +9,23 @@ import { PlusCircle, StickyNote, LogIn, ChevronDown } from "lucide-react";
 // Fejkat inloggnings-check (byt ut mot auth() senare)
 const getSession = async () => {
   // Returnera null för att testa inloggningsvyn, eller objektet för inloggat läge
-  return { user: { name: "Filip", role: "USER" } };
+  return { user: { id: "user_123", name: "Filip", role: "USER" } };
 };
 
 export default async function HomePage() {
   const session = await getSession();
+
+  // Hämta data från Neon om vi har en session
+  // Vi använder .catch(() => []) för att sidan inte ska krascha om databasen är tom/offline
+  const todos = session
+    ? await db.todo.findMany({
+        orderBy: { createdAt: 'asc' }
+      }).catch(() => [])
+    : [];
+
+  const postIts = session
+    ? await db.postIt.findMany().catch(() => [])
+    : [];
 
   return (
     <div className="flex flex-col w-full">
@@ -49,10 +62,10 @@ export default async function HomePage() {
           </div>
         </div>
 
-        {/* Veckovyn - flex-1 gör att den fyller ut resten av skärmen */}
+        {/* Veckovyn - Här skickar vi nu in våra todos från Prisma */}
         <div className="flex-1 bg-card rounded-xl border shadow-xl overflow-hidden flex flex-col min-h-[600px]">
           {session ? (
-            <WeeklyView />
+            <WeeklyView initialTodos={todos} />
           ) : (
             <div className="flex-1 flex items-center justify-center bg-muted/20">
               <p className="text-muted-foreground italic">Logga in för att visa kalendern</p>
@@ -67,7 +80,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* SEKTION 2: Post-it sektionen (Ligger under "folden") */}
+      {/* SEKTION 2: Post-it sektionen */}
       <section className="min-h-[60vh] bg-muted/30 border-t border-border px-4 py-12 md:px-8">
         <div className="max-w-[1400px] mx-auto space-y-8">
           <div className="flex items-center justify-between border-b pb-4">
@@ -85,12 +98,13 @@ export default async function HomePage() {
           </div>
 
           <div className="bg-background/50 rounded-2xl p-6 border border-dashed border-border">
-            <PostItGrid />
+            {/* Vi skickar in hämtade post-its här också */}
+            <PostItGrid initialNotes={postIts} />
           </div>
         </div>
       </section>
 
-      {/* Footer / Copyright */}
+      {/* Footer */}
       <footer className="py-8 text-center text-sm text-muted-foreground border-t">
         <p>© 2026 Planerings-appen</p>
       </footer>
