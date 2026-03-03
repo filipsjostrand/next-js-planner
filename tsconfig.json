@@ -25,7 +25,8 @@
     "paths": {
       "@/*": [
         "./*"
-      ]
+      ],"../app/generated/prisma": ["./app/generated/prisma/index.d.ts"],
+      "../app/generated/prisma/*": ["./app/generated/prisma/*"]
     }
   },
   "include": [

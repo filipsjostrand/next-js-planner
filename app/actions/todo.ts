@@ -2,14 +2,25 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+// Vi hämtar Enumen direkt från din genererade klient för att slippa "any"
+import { RecurrenceType } from "@prisma/client"
 
-// Vi skapar ett fast ID så att databas-relationerna fortfarande fungerar
-const TEMP_USER_ID = "user-1"
+// Definiera en typ för den inkommande datan som matchar databasens schema
+interface CreateTodoInput {
+  title: string
+  date: string
+  time: string | null
+  color: string
+  recurrence: RecurrenceType // Använder Prismas egna typ istället för string
+  interval: number
+  daysOfWeek: string | null
+  userId: string // Dynamiskt ID från sessionen
+}
 
 /**
  * SKAPA NY UPPGIFT
  */
-export async function createTodo(data: { title: string; date: string; time: string; color: string }) {
+export async function createTodo(data: CreateTodoInput) {
   try {
     await db.todo.create({
       data: {
@@ -17,8 +28,11 @@ export async function createTodo(data: { title: string; date: string; time: stri
         date: data.date,
         time: data.time,
         color: data.color,
-        userId: TEMP_USER_ID, // Använder vårt fejkade ID
+        userId: data.userId,
         completed: false,
+        recurrence: data.recurrence, // Nu typ-säkert utan as any
+        interval: data.interval,
+        daysOfWeek: data.daysOfWeek,
       },
     })
 
@@ -31,7 +45,7 @@ export async function createTodo(data: { title: string; date: string; time: stri
 }
 
 /**
- * TOGGLA STATUS
+ * TOGGLA STATUS (Slutförd / Ej slutförd)
  */
 export async function toggleTodo(id: string, completed: boolean) {
   try {
@@ -43,6 +57,7 @@ export async function toggleTodo(id: string, completed: boolean) {
     revalidatePath("/")
     return { success: true }
   } catch (error) {
+    console.error("Database error:", error)
     return { error: "Kunde inte uppdatera status." }
   }
 }
@@ -59,97 +74,7 @@ export async function deleteTodo(id: string) {
     revalidatePath("/")
     return { success: true }
   } catch (error) {
+    console.error("Database error:", error)
     return { error: "Kunde inte radera uppgiften." }
   }
 }
-
-// _ _ _
-
-// 2026-03-02 rev00 - Inloggningskrav stoppar dev
-
-// "use server"
-
-// import { db } from "@/lib/db"
-// import { auth } from "@/auth" // Eller din konfigurerade auth-sökväg
-// import { revalidatePath } from "next/cache"
-
-// /**
-//  * SKAPA NY UPPGIFT
-//  */
-// export async function createTodo(data: { title: string; date: string; time: string; color: string }) {
-//   const session = await auth()
-
-//   if (!session?.user?.id) {
-//     return { error: "Du måste vara inloggad." }
-//   }
-
-//   try {
-//     await db.todo.create({
-//       data: {
-//         title: data.title,
-//         date: data.date,
-//         time: data.time,
-//         color: data.color,
-//         userId: session.user.id,
-//         completed: false,
-//       },
-//     })
-
-//     revalidatePath("/")
-//     return { success: true }
-//   } catch (error) {
-//     console.error("Database error:", error)
-//     return { error: "Kunde inte spara uppgiften i databasen." }
-//   }
-// }
-
-// /**
-//  * TOGGLA STATUS (KLAR / EJ KLAR)
-//  */
-// export async function toggleTodo(id: string, completed: boolean) {
-//   const session = await auth()
-
-//   if (!session?.user?.id) return { error: "Ej behörig." }
-
-//   try {
-//     // Vi lägger till userId i 'where' för extra säkerhet
-//     await db.todo.update({
-//       where: {
-//         id,
-//         userId: session.user.id
-//       },
-//       data: {
-//         completed: !completed
-//       },
-//     })
-
-//     revalidatePath("/")
-//     return { success: true }
-//   } catch (error) {
-//     return { error: "Kunde inte uppdatera status." }
-//   }
-// }
-
-// /**
-//  * RADERA UPPGIFT
-//  */
-// export async function deleteTodo(id: string) {
-//   const session = await auth()
-
-//   if (!session?.user?.id) return { error: "Ej behörig." }
-
-//   try {
-//     // Kontrollera att todon tillhör användaren innan radering
-//     await db.todo.delete({
-//       where: {
-//         id,
-//         userId: session.user.id
-//       },
-//     })
-
-//     revalidatePath("/")
-//     return { success: true }
-//   } catch (error) {
-//     return { error: "Kunde inte radera uppgiften." }
-//   }
-// }

@@ -5,7 +5,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-import { Check } from "lucide-react"
+import { Check, RefreshCw } from "lucide-react"
+import { createTodo } from "@/app/actions/todo"
+import { RecurrenceType } from "@prisma/client" // Importera korrekt Enum-typ
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 const COLORS = [
   { name: "Standard", bg: "bg-card", border: "border-border", value: "default" },
@@ -16,32 +25,77 @@ const COLORS = [
   { name: "Lila", bg: "bg-purple-100", border: "border-purple-300", value: "purple" },
 ]
 
-export function TodoForm({ date, onSuccess }: { date: string, onSuccess: () => void }) {
+const DAYS = [
+  { id: "1", label: "M" },
+  { id: "2", label: "T" },
+  { id: "3", label: "O" },
+  { id: "4", label: "T" },
+  { id: "5", label: "F" },
+  { id: "6", label: "L" },
+  { id: "7", label: "S" },
+]
+
+// Uppdaterat interface med userId
+interface TodoFormProps {
+  date: string
+  userId: string
+  onSuccess: () => void
+}
+
+export function TodoForm({ date, userId, onSuccess }: TodoFormProps) {
   const [title, setTitle] = useState("")
   const [time, setTime] = useState("12:00")
   const [selectedColor, setSelectedColor] = useState("default")
+  const [isPending, setIsPending] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Återkommande logik med korrekt Prisma-typ
+  const [recurrence, setRecurrence] = useState<RecurrenceType>("NONE")
+  const [interval, setIntervalValue] = useState(1)
+  const [selectedDays, setSelectedDays] = useState<string[]>([])
+
+  const toggleDay = (dayId: string) => {
+    setSelectedDays(prev =>
+      prev.includes(dayId) ? prev.filter(d => d !== dayId) : [...prev, dayId]
+    )
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("Sparar uppgift:", {
-      title,
-      date,
-      time,
-      color: selectedColor
-    })
-    // Här läggs databasanropet till senare
-    onSuccess()
+    setIsPending(true)
+
+    try {
+      const result = await createTodo({
+        title,
+        date,
+        time,
+        color: selectedColor,
+        recurrence, // Nu typ-säker
+        interval,
+        daysOfWeek: selectedDays.length > 0 ? selectedDays.join(",") : null,
+        userId, // Skickar med userId från props
+      })
+
+      if (result.success) {
+        onSuccess()
+      } else {
+        alert(result.error || "Något gick fel")
+      }
+    } catch (error) {
+      console.error("Fel vid sparande:", error)
+    } finally {
+      setIsPending(false)
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 pt-4">
+    <form onSubmit={handleSubmit} className="space-y-6 pt-2">
       <div className="space-y-4">
         {/* Titel */}
         <div className="space-y-2">
           <Label htmlFor="title">Vad behöver göras?</Label>
           <Input
             id="title"
-            placeholder="Ex: Möte med teamet..."
+            placeholder="Ex: Träna, Handla..."
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             autoFocus
@@ -49,81 +103,115 @@ export function TodoForm({ date, onSuccess }: { date: string, onSuccess: () => v
           />
         </div>
 
-        {/* Tid */}
-        <div className="space-y-2">
-          <Label htmlFor="time">Tidpunkt</Label>
-          <Input
-            id="time"
-            type="time"
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="time">Tidpunkt</Label>
+            <Input
+              id="time"
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Färg</Label>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {COLORS.map((color) => (
+                <button
+                  key={color.value}
+                  type="button"
+                  onClick={() => setSelectedColor(color.value)}
+                  className={cn(
+                    "h-8 w-8 rounded-full border-2 transition-all flex items-center justify-center",
+                    color.bg,
+                    color.border,
+                    selectedColor === color.value ? "ring-2 ring-primary ring-offset-2 scale-110" : "opacity-70"
+                  )}
+                >
+                  {selectedColor === color.value && <Check className="h-4 w-4 text-slate-900" />}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {/* Färgval */}
-        <div className="space-y-2">
-          <Label>Välj färg</Label>
-          <div className="flex flex-wrap gap-2">
-            {COLORS.map((color) => (
-              <button
-                key={color.value}
-                type="button"
-                onClick={() => setSelectedColor(color.value)}
-                className={cn(
-                  "h-8 w-8 rounded-full border-2 transition-all flex items-center justify-center",
-                  color.bg,
-                  color.border,
-                  selectedColor === color.value ? "ring-2 ring-ring ring-offset-2 scale-110" : "opacity-70 hover:opacity-100"
-                )}
-                title={color.name}
-              >
-                {selectedColor === color.value && <Check className="h-4 w-4 text-slate-900" />}
-              </button>
-            ))}
+        {/* ÅTERKOMMANDE SEKTION */}
+        <div className="p-4 bg-muted/30 rounded-lg border space-y-4">
+          <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground">
+            <RefreshCw className="h-4 w-4" />
+            ÅTERKOMMANDE
           </div>
+
+          <div className="space-y-2">
+            <Select
+              value={recurrence}
+              onValueChange={(value) => setRecurrence(value as RecurrenceType)}
+            >
+              <SelectTrigger className="bg-background">
+                <SelectValue placeholder="Välj typ" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="NONE">Ingen upprepning</SelectItem>
+                <SelectItem value="DAILY">Varje dag</SelectItem>
+                <SelectItem value="WEEKLY">Varje vecka</SelectItem>
+                <SelectItem value="MONTHLY">Varje månad</SelectItem>
+                <SelectItem value="YEARLY">Varje år</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {recurrence !== "NONE" && (
+            <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-3">
+                <Label className="text-xs whitespace-nowrap">Var</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  className="w-16 h-8"
+                  value={interval}
+                  onChange={(e) => setIntervalValue(parseInt(e.target.value) || 1)}
+                />
+                <Label className="text-xs whitespace-nowrap">
+                  {recurrence === "DAILY" && "dag"}
+                  {recurrence === "WEEKLY" && "vecka"}
+                  {recurrence === "MONTHLY" && "månad"}
+                  {recurrence === "YEARLY" && "år"}
+                </Label>
+              </div>
+
+              {recurrence === "WEEKLY" && (
+                <div className="flex justify-between gap-1">
+                  {DAYS.map((day) => (
+                    <button
+                      key={day.id}
+                      type="button"
+                      onClick={() => toggleDay(day.id)}
+                      className={cn(
+                        "h-8 flex-1 rounded-md text-[10px] font-bold border transition-all",
+                        selectedDays.includes(day.id)
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background hover:bg-muted"
+                      )}
+                    >
+                      {day.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       <div className="flex justify-end gap-2 border-t pt-4">
-        <Button variant="outline" type="button" onClick={onSuccess}>Avbryt</Button>
-        <Button type="submit">Spara i kalendern</Button>
+        <Button variant="outline" type="button" onClick={onSuccess} disabled={isPending}>
+          Avbryt
+        </Button>
+        <Button type="submit" disabled={isPending}>
+          {isPending ? "Sparar..." : "Spara i kalendern"}
+        </Button>
       </div>
     </form>
   )
 }
-
-// "use client"
-
-// import { useState } from "react"
-// import { Button } from "@/components/ui/button"
-// import { Input } from "@/components/ui/input"
-// import { Label } from "@/components/ui/label"
-
-// export function TodoForm({ date, onSuccess }: { date: string, onSuccess: () => void }) {
-//   const [title, setTitle] = useState("")
-
-//   const handleSubmit = (e: React.FormEvent) => {
-//     e.preventDefault()
-//     console.log("Sparar todo:", { title, date })
-//     // Här kommer vi senare lägga till Prisma-anropet
-//     onSuccess()
-//   }
-
-//   return (
-//     <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-//       <div className="space-y-2">
-//         <Label htmlFor="title">Vad behöver göras?</Label>
-//         <Input
-//           id="title"
-//           placeholder="Ex: Handla mat..."
-//           value={title}
-//           onChange={(e) => setTitle(e.target.value)}
-//           autoFocus
-//         />
-//       </div>
-//       <div className="flex justify-end gap-2">
-//         <Button type="submit">Spara uppgift</Button>
-//       </div>
-//     </form>
-//   )
-// }
