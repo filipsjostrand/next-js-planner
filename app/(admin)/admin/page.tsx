@@ -13,13 +13,32 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { DeleteButton } from "@/components/admin/delete-button";
-import { EditUserButton } from "@/components/admin/edit-user-button"; // Tillagd
+import { EditUserButton } from "@/components/admin/edit-user-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-// import { ArrowLeft } from "lucide-material"; // Kontrollera att din ikon-import stämmer, annars använd 'lucide-react'
 import { ArrowLeft as ArrowLeftIcon } from "lucide-react";
+
+// --- TYPER FÖR ATT LÖSA VERCEL-FELET ---
+interface AdminUser {
+  id: string;
+  name: string | null;
+  email: string | null;
+  role: string;
+  group: {
+    name: string;
+  } | null;
+}
+
+interface AdminGroup {
+  id: string;
+  name: string;
+  createdAt: Date;
+  _count: {
+    users: number;
+  };
+}
 
 export default async function AdminPage() {
   // 1. DÖRRVAKT: Kontrollera att användaren är inloggad och är ADMIN
@@ -29,21 +48,24 @@ export default async function AdminPage() {
     redirect("/");
   }
 
-  // 2. DATAHÄMTNING: Hämta användare och grupper parallellt
-  const [users, groups] = await Promise.all([
-    db.user.findMany({
-      include: { group: true },
-      orderBy: { createdAt: "desc" }
-    }),
-    db.group.findMany({
-      include: {
-        _count: {
-          select: { users: true }
-        }
-      },
-      orderBy: { name: "asc" }
-    })
-  ]);
+  // 2. DATAHÄMTNING: Hämta data med tydlig typning
+  const usersRaw = await db.user.findMany({
+    include: { group: true },
+    orderBy: { createdAt: "desc" }
+  });
+
+  const groupsRaw = await db.group.findMany({
+    include: {
+      _count: {
+        select: { users: true }
+      }
+    },
+    orderBy: { name: "asc" }
+  });
+
+  // Tvinga typerna för att TypeScript ska vara nöjd i loopen
+  const users = usersRaw as unknown as AdminUser[];
+  const groups = groupsRaw as unknown as AdminGroup[];
 
   return (
     <div className="p-10 space-y-8 max-w-7xl mx-auto">
@@ -91,12 +113,12 @@ export default async function AdminPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map((user) => (
+                  {users.map((user: AdminUser) => (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           {user.name}
-                          <EditUserButton id={user.id} currentName={user.name} />
+                          <EditUserButton id={user.id} currentName={user.name || ""} />
                         </div>
                       </TableCell>
                       <TableCell>{user.email}</TableCell>
@@ -150,7 +172,7 @@ export default async function AdminPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {groups.map((group) => (
+                  {groups.map((group: AdminGroup) => (
                     <TableRow key={group.id}>
                       <TableCell className="font-medium">{group.name}</TableCell>
                       <TableCell>{group._count.users} st</TableCell>
