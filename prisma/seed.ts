@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "../app/generated/prisma";
+import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import "dotenv/config";
 
@@ -74,7 +74,7 @@ async function main() {
 main()
   .then(async () => {
     await prisma.$disconnect();
-    await pool.end(); // Stänger även poolen för att scriptet ska avslutas snyggt
+    await pool.end(); // Stänger poolen för att scriptet ska avslutas snyggt
   })
   .catch(async (e) => {
     console.error("❌ SEEDING MISSLYCKADES:");
