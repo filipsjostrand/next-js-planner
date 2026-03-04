@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+📅 Källner Planering
+En modern, fullstack-planeringsapplikation byggd med Next.js 15, Prisma och Tailwind CSS. Appen är designad för hushåll eller grupper som behöver en gemensam överblick över veckans aktiviteter med stöd för återkommande uppgifter och digitala post-it-lappar.
 
-## Getting Started
+🚀 Funktioner
+Vecko- & Månadsöversikt: Växla sömlöst mellan en detaljerad veckovy och en bredare månadsöversikt.
 
-First, run the development server:
+Återkommande Uppgifter: Stöd för dagliga, veckovisa (specifika dagar), månatliga och årliga upprepningar.
 
-```bash
+Användarvyer: Se och navigera mellan gruppmedlemmars scheman (Admin/Läs-läge).
+
+Post-it Grid: En dedikerad sektion för snabba anteckningar som inte är bundna till specifika datum.
+
+Rollbaserad Åtkomst: System för Admin, Användare och Gäster med olika behörighetsnivåer.
+
+Responsive Design: Fullt optimerad för både desktop och mobila enheter med ett lekfullt men rent UI.
+
+Dark Mode: Stöd för ljust och mörkt läge via next-themes.
+
+🛠 Teknisk Stack
+Framework: Next.js 15 (App Router)
+
+Databas: Prisma ORM (PostgreSQL/MySQL/SQLite)
+
+Autentisering: Auth.js (NextAuth)
+
+Styling: Tailwind CSS
+
+Komponenter: Shadcn/UI & Lucide React (ikoner)
+
+Datumhantering: date-fns
+
+Typsäkerhet: TypeScript
+
+📦 Installation
+Klona repot:
+
+Bash
+git clone https://github.com/ditt-användarnamn/kallner-planering.git
+cd kallner-planering
+Installera beroenden:
+
+Bash
+npm install
+Miljövariabler:
+Skapa en .env-fil i roten och lägg till följande:
+
+Code snippet
+DATABASE_URL="din-databas-url"
+AUTH_SECRET="din-auth-secret" # Generera med: npx auth secret
+Databas-setup:
+
+Bash
+npx prisma generate
+npx prisma db push
+Starta utvecklingsservern:
+
+Bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+📂 Struktur
+/app: Innehåller alla routes, inklusive huvudvyn (page.tsx) och API-actions.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+/components/dashboard: Kärnkomponenter som WeeklyView, PostItGrid och UserSelector.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+/components/ui: Återanvändbara UI-komponenter från Shadcn.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+/lib: Konfiguration för Prisma (db.ts) och verktygsfunktioner.
 
-## Learn More
+/auth.ts: Logik för autentisering och sessioner.
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+📝 Licens
+Detta projekt är privat och skapat för familjen Källners planering.
