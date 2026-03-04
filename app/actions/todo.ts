@@ -1,4 +1,4 @@
-// app/actions/todo.ts
+"use server"
 
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
@@ -47,7 +47,8 @@ export async function createTodo(data: CreateTodoInput) {
   }
 }
 
-export async function updateTodoStatus(id: string, completed: boolean) {
+// Denna funktion heter nu toggleTodo för att matcha importen i din weekly-view.tsx
+export async function toggleTodo(id: string, completed: boolean) {
   try {
     await db.todo.update({
       where: { id },
@@ -56,6 +57,7 @@ export async function updateTodoStatus(id: string, completed: boolean) {
     revalidatePath("/");
     return { success: true };
   } catch (error) {
+    console.error("Fel vid uppdatering av status:", error);
     return { success: false };
   }
 }
@@ -68,6 +70,7 @@ export async function deleteTodo(id: string) {
     revalidatePath("/");
     return { success: true };
   } catch (error) {
+    console.error("Fel vid borttagning av todo:", error);
     return { success: false };
   }
 }
