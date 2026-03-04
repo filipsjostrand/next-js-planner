@@ -19,13 +19,14 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 // --- TYPER ---
-
 interface PostIt {
   id: string;
   content: string;
   color: string;
   userId: string;
 }
+
+type RecurrenceType = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
 
 interface PrismaTodo {
   id: string;
@@ -34,7 +35,7 @@ interface PrismaTodo {
   time: string | null;
   color: string;
   completed: boolean;
-  recurrence: string;
+  recurrence: string; // Från DB är detta en sträng
   interval: number;
   daysOfWeek: string | null;
   userId: string;
@@ -49,28 +50,24 @@ interface HomePageProps {
   searchParams: Promise<{ user?: string }>;
 }
 
-// --- KOMPONENT ---
-
 export default async function HomePage({ searchParams }: HomePageProps) {
   const session = await auth();
   const resolvedParams = await searchParams;
 
-  // Säkerhetskoll: Kontrollera att session och user existerar
   if (!session || !session.user) {
     redirect("/login");
   }
 
-  // Vi extraherar värdena säkert.
-  // Om din TS klagar här, se till att din auth.ts har module augmentation för Session.
   const loggedInUserId = session.user.id as string;
   const userRole = (session.user as { role?: string }).role;
   const userGroupId = (session.user as { groupId?: string }).groupId;
 
   const viewUserId = resolvedParams.user || loggedInUserId;
-  const isViewingOthers = viewUserId !== loggedInUserId;
-  const isGuest = userRole === "GUEST";
 
-  // Hämta data med explicita typer istället för any
+  const isReadOnly = userRole === "GUEST";
+  const isAdmin = userRole === "ADMIN";
+  const isViewingOthers = viewUserId !== loggedInUserId;
+
   const [groupMembers, todosRaw, postItsRaw] = await Promise.all([
     db.user.findMany({
       where: { groupId: userGroupId || "" },
@@ -79,7 +76,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
     db.todo.findMany({
       where: { userId: viewUserId },
-      orderBy: { date: 'asc' }
+      orderBy: [
+        { date: 'asc' },
+        { time: 'asc' }
+      ]
     }) as Promise<PrismaTodo[]>,
 
     db.postIt.findMany({
@@ -87,9 +87,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     }) as Promise<PostIt[]>
   ]);
 
-  // Transformera Todos med strikt typning
   const serializedTodos: Todo[] = (todosRaw || []).map((todo: PrismaTodo): Todo => {
     const dateString = todo.date ? todo.date.split('T')[0] : "";
+
+    // Säker typ-castning av recurrence istället för any
+    const recurrence = (["NONE", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(todo.recurrence)
+      ? todo.recurrence
+      : "NONE") as RecurrenceType;
 
     return {
       id: todo.id,
@@ -98,7 +102,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       time: todo.time,
       color: todo.color,
       completed: todo.completed,
-      recurrence: todo.recurrence as "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY",
+      recurrence: recurrence,
       interval: todo.interval,
       daysOfWeek: todo.daysOfWeek,
       userId: todo.userId
@@ -119,7 +123,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </div>
 
           <div className="flex items-center gap-3">
-            {userRole === "ADMIN" && (
+            {isAdmin && (
               <Link href="/admin">
                 <Button variant="ghost" size="sm" className="gap-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50">
                   <ShieldCheck className="h-4 w-4" />
@@ -128,7 +132,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               </Link>
             )}
 
-            {isGuest && (
+            {isReadOnly && (
               <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-amber-700 text-xs font-bold">
                 <ShieldAlert className="h-3 w-3" /> GÄSTLÄGE
               </div>
@@ -150,9 +154,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
               {isViewingOthers ? `Planering: ${currentViewedUserName}` : "Min Planering"}
             </h1>
-            <p className="text-muted-foreground mt-1">
-              {isViewingOthers ? `Visningsläge för ${currentViewedUserName}` : "Här är dina planer för veckan."}
-            </p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -162,8 +163,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               loggedInUserId={loggedInUserId}
             />
 
-            {!isViewingOthers && !isGuest && (
-              <AddTodoButton userId={loggedInUserId} />
+            {!isReadOnly && (
+              <AddTodoButton userId={viewUserId} />
             )}
           </div>
         </div>
@@ -171,7 +172,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden min-h-[600px] flex flex-col">
           <WeeklyView
             initialTodos={serializedTodos}
-            isReadOnly={isViewingOthers || isGuest}
+            isReadOnly={isReadOnly}
             currentUserId={viewUserId}
           />
         </div>
@@ -186,7 +187,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <div className="bg-slate-50/50 rounded-3xl p-6 border-2 border-dashed border-slate-200">
             <PostItGrid
               initialNotes={postItsRaw}
-              isReadOnly={isViewingOthers || isGuest}
+              isReadOnly={isReadOnly}
               viewUserId={viewUserId}
             />
           </div>

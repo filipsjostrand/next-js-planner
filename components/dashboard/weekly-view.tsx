@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   addDays,
   format,
@@ -39,7 +39,6 @@ import { TodoForm } from "./todo-form"
 import { ModeToggle } from "@/components/mode-toggle"
 import { toggleTodo, deleteTodo } from "@/app/actions/todo"
 
-// EXPORTERAT INTERFACE: Detta gör att page.tsx kan använda samma typ
 export interface Todo {
   id: string
   title: string
@@ -75,6 +74,11 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
   const [currentDate, setCurrentDate] = useState(new Date())
   const [isOpen, setIsOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [todos, setTodos] = useState<Todo[]>(initialTodos)
+
+  useEffect(() => {
+    setTodos(initialTodos)
+  }, [initialTodos])
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 })
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
@@ -95,13 +99,34 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
     setIsOpen(true)
   }
 
+  const handleToggle = async (todoId: string, currentStatus: boolean) => {
+    if (isReadOnly) return
+    const newStatus = !currentStatus
+    setTodos(prev => prev.map(t => t.id === todoId ? { ...t, completed: newStatus } : t))
+    const result = await toggleTodo(todoId, newStatus)
+    if (!result.success) {
+      setTodos(prev => prev.map(t => t.id === todoId ? { ...t, completed: currentStatus } : t))
+      alert("Kunde inte uppdatera status.")
+    }
+  }
+
+  const handleDelete = async (todoId: string) => {
+    if (!confirm("Vill du radera uppgiften?")) return
+    const originalTodos = [...todos]
+    setTodos(prev => prev.filter(t => t.id !== todoId))
+    const result = await deleteTodo(todoId)
+    if (!result.success) {
+      setTodos(originalTodos)
+      alert("Kunde inte radera uppgiften.")
+    }
+  }
+
   const shouldShowTodo = (todo: Todo, targetDate: Date) => {
     const normalizedTarget = startOfDay(targetDate)
     const todoStartDate = startOfDay(parseISO(todo.date))
     const targetDateStr = format(normalizedTarget, "yyyy-MM-dd")
 
     if (normalizedTarget < todoStartDate) return false
-
     if (todo.recurrence === "NONE") return todo.date === targetDateStr
 
     if (todo.recurrence === "DAILY") {
@@ -131,7 +156,6 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
              normalizedTarget.getDate() === todoStartDate.getDate() &&
              normalizedTarget.getMonth() === todoStartDate.getMonth()
     }
-
     return false
   }
 
@@ -184,7 +208,16 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
           const isToday = isTodayCheck(day)
           const isCurrentMonth = isSameMonth(day, monthStart)
           const dateStr = format(day, "yyyy-MM-dd")
-          const dayTodos = initialTodos.filter(todo => shouldShowTodo(todo, day))
+
+          // SORTERING: Tidsordning, tider som saknas hamnar sist
+          const dayTodos = todos
+            .filter(todo => shouldShowTodo(todo, day))
+            .sort((a, b) => {
+              if (!a.time && !b.time) return 0;
+              if (!a.time) return 1;
+              if (!b.time) return -1;
+              return a.time.localeCompare(b.time);
+            });
 
           return (
             <div key={day.toString()} className={cn(
@@ -214,58 +247,50 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
               </div>
 
               <div className="flex-1 space-y-1 overflow-y-auto min-h-0">
-                {dayTodos.length > 0 ? (
-                  dayTodos.map(todo => (
-                    <div
-                      key={`${todo.id}-${dateStr}`}
-                      className={cn(
-                        "group/todo p-1.5 rounded border text-[11px] font-bold shadow-sm transition-all flex items-start gap-2 relative",
-                        getColorClass(todo.color),
-                        todo.completed && "opacity-50 grayscale-[0.3]"
-                      )}
-                    >
-                      {!isReadOnly ? (
-                        <button
-                          onClick={() => toggleTodo(todo.id, todo.completed)}
-                          className={cn(
-                            "mt-0.5 w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors",
-                            todo.completed ? "bg-green-600 border-green-600 text-white" : "bg-white/80 border-black/10 dark:bg-black/20"
-                          )}
-                        >
-                          {todo.completed && <Check className="h-3 w-3 stroke-[3px]" />}
-                        </button>
-                      ) : (
-                        todo.completed && <Check className="h-3 w-3 mt-1 text-green-600 shrink-0" />
-                      )}
+                {dayTodos.map(todo => (
+                  <div
+                    key={`${todo.id}-${dateStr}`}
+                    className={cn(
+                      "group/todo p-1.5 rounded border text-[11px] font-bold shadow-sm transition-all flex items-start gap-2 relative",
+                      getColorClass(todo.color),
+                      todo.completed && "opacity-50 grayscale-[0.3]"
+                    )}
+                  >
+                    {!isReadOnly ? (
+                      <button
+                        onClick={() => handleToggle(todo.id, todo.completed)}
+                        className={cn(
+                          "mt-0.5 w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors",
+                          todo.completed ? "bg-green-600 border-green-600 text-white" : "bg-white/80 border-black/10 dark:bg-black/20"
+                        )}
+                      >
+                        {todo.completed && <Check className="h-3 w-3 stroke-[3px]" />}
+                      </button>
+                    ) : (
+                      todo.completed && <Check className="h-3 w-3 mt-1 text-green-600 shrink-0" />
+                    )}
 
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1 opacity-70 italic mb-0.5 text-[9px]">
-                          <Clock className="h-2.5 w-2.5" />
-                          {todo.time || "Ingen tid"}
-                          {todo.recurrence !== "NONE" && <RefreshCw className="h-2.5 w-2.5 ml-1 text-primary" style={{ animationDuration: '3s' }} />}
-                        </div>
-                        <div className={cn("truncate leading-tight", todo.completed && "line-through")}>
-                          {todo.title}
-                        </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1 opacity-70 italic mb-0.5 text-[9px]">
+                        <Clock className="h-2.5 w-2.5" />
+                        {todo.time || "Ingen tid"}
+                        {todo.recurrence !== "NONE" && <RefreshCw className="h-2.5 w-2.5 ml-1 text-primary" style={{ animationDuration: '3s' }} />}
                       </div>
+                      <div className={cn("truncate leading-tight", todo.completed && "line-through")}>
+                        {todo.title}
+                      </div>
+                    </div>
 
-                      {!isReadOnly && (
-                        <button
-                          onClick={() => { if(confirm("Vill du radera uppgiften?")) deleteTodo(todo.id) }}
-                          className="opacity-0 group-hover/todo:opacity-100 transition-opacity p-1 hover:text-red-500 rounded bg-background/20"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  isToday && isReadOnly && (
-                    <div className="text-[10px] text-muted-foreground/50 text-center mt-4 italic">
-                      Inga planerade uppgifter
-                    </div>
-                  )
-                )}
+                    {!isReadOnly && (
+                      <button
+                        onClick={() => handleDelete(todo.id)}
+                        className="opacity-0 group-hover/todo:opacity-100 transition-opacity p-1 hover:text-red-500 rounded bg-background/20"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
 
               {!isReadOnly && (
