@@ -18,6 +18,8 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
+// --- TYPER ---
+
 interface PostIt {
   id: string;
   content: string;
@@ -25,42 +27,69 @@ interface PostIt {
   userId: string;
 }
 
+interface PrismaTodo {
+  id: string;
+  title: string;
+  date: string;
+  time: string | null;
+  color: string;
+  completed: boolean;
+  recurrence: string;
+  interval: number;
+  daysOfWeek: string | null;
+  userId: string;
+}
+
+interface GroupMember {
+  id: string;
+  name: string | null;
+}
+
 interface HomePageProps {
   searchParams: Promise<{ user?: string }>;
 }
+
+// --- KOMPONENT ---
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   const session = await auth();
   const resolvedParams = await searchParams;
 
+  // Säkerhetskoll: Kontrollera att session och user existerar
   if (!session || !session.user) {
     redirect("/login");
   }
 
-  const loggedInUserId = session.user.id;
+  // Vi extraherar värdena säkert.
+  // Om din TS klagar här, se till att din auth.ts har module augmentation för Session.
+  const loggedInUserId = session.user.id as string;
+  const userRole = (session.user as { role?: string }).role;
+  const userGroupId = (session.user as { groupId?: string }).groupId;
+
   const viewUserId = resolvedParams.user || loggedInUserId;
   const isViewingOthers = viewUserId !== loggedInUserId;
-  const isGuest = session.user.role === "GUEST";
+  const isGuest = userRole === "GUEST";
 
+  // Hämta data med explicita typer istället för any
   const [groupMembers, todosRaw, postItsRaw] = await Promise.all([
     db.user.findMany({
-      where: { groupId: session.user.groupId },
+      where: { groupId: userGroupId || "" },
       select: { id: true, name: true }
-    }).catch(() => []),
+    }) as Promise<GroupMember[]>,
+
     db.todo.findMany({
       where: { userId: viewUserId },
       orderBy: { date: 'asc' }
-    }).catch(() => []),
+    }) as Promise<PrismaTodo[]>,
+
     db.postIt.findMany({
       where: { userId: viewUserId }
-    }).catch(() => [])
+    }) as Promise<PostIt[]>
   ]);
 
-  // Här transformerar vi datan utan "instanceof" för att undvika TS-felet
-  const serializedTodos: Todo[] = todosRaw.map((todo): Todo => {
-    // Eftersom Prisma säger att todo.date redan är en string,
-    // splittar vi den direkt för att få formatet YYYY-MM-DD
-    const dateString = todo.date.split('T')[0];
+  // Transformera Todos med strikt typning
+  const serializedTodos: Todo[] = (todosRaw || []).map((todo: PrismaTodo): Todo => {
+    const dateString = todo.date ? todo.date.split('T')[0] : "";
 
     return {
       id: todo.id,
@@ -69,7 +98,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       time: todo.time,
       color: todo.color,
       completed: todo.completed,
-      // Vi mappar enumen explicit för att matcha WeeklyView-typen
       recurrence: todo.recurrence as "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY",
       interval: todo.interval,
       daysOfWeek: todo.daysOfWeek,
@@ -91,7 +119,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </div>
 
           <div className="flex items-center gap-3">
-            {session.user.role === "ADMIN" && (
+            {userRole === "ADMIN" && (
               <Link href="/admin">
                 <Button variant="ghost" size="sm" className="gap-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50">
                   <ShieldCheck className="h-4 w-4" />
@@ -129,7 +157,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
           <div className="flex items-center gap-3">
             <UserSelector
-              members={groupMembers}
+              members={groupMembers.map(m => ({ id: m.id, name: m.name || "Namnlös" }))}
               currentViewId={viewUserId}
               loggedInUserId={loggedInUserId}
             />
@@ -157,7 +185,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </div>
           <div className="bg-slate-50/50 rounded-3xl p-6 border-2 border-dashed border-slate-200">
             <PostItGrid
-              initialNotes={postItsRaw as PostIt[]}
+              initialNotes={postItsRaw}
               isReadOnly={isViewingOthers || isGuest}
               viewUserId={viewUserId}
             />
