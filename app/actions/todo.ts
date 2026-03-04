@@ -1,80 +1,73 @@
-"use server"
+// app/actions/todo.ts
 
-import { db } from "@/lib/db"
-import { revalidatePath } from "next/cache"
-// Vi hämtar Enumen direkt från din genererade klient för att slippa "any"
-import { RecurrenceType } from "@prisma/client"
+import { db } from "@/lib/db";
+import { auth } from "@/auth";
+import { revalidatePath } from "next/cache";
 
-// Definiera en typ för den inkommande datan som matchar databasens schema
+// Vi definierar sträng-literals istället för att importera Enumen
+// Det gör koden mer tålig mot ändringar i Prisma-klienten
 interface CreateTodoInput {
-  title: string
-  date: string
-  time: string | null
-  color: string
-  recurrence: RecurrenceType // Använder Prismas egna typ istället för string
-  interval: number
-  daysOfWeek: string | null
-  userId: string // Dynamiskt ID från sessionen
+  title: string;
+  date: string;
+  time?: string | null;
+  color: string;
+  recurrence: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  interval: number;
+  daysOfWeek?: string | null;
+  userId: string;
 }
 
-/**
- * SKAPA NY UPPGIFT
- */
 export async function createTodo(data: CreateTodoInput) {
+  const session = await auth();
+
+  if (!session) {
+    throw new Error("Du måste vara inloggad");
+  }
+
   try {
-    await db.todo.create({
+    const todo = await db.todo.create({
       data: {
         title: data.title,
         date: data.date,
-        time: data.time,
+        time: data.time || null,
         color: data.color,
-        userId: data.userId,
         completed: false,
-        recurrence: data.recurrence, // Nu typ-säkert utan as any
+        recurrence: data.recurrence,
         interval: data.interval,
-        daysOfWeek: data.daysOfWeek,
+        daysOfWeek: data.daysOfWeek || null,
+        userId: data.userId,
       },
-    })
+    });
 
-    revalidatePath("/")
-    return { success: true }
+    revalidatePath("/");
+    return { success: true, todo };
   } catch (error) {
-    console.error("Database error:", error)
-    return { error: "Kunde inte spara uppgiften." }
+    console.error("Fel vid skapande av todo:", error);
+    return { success: false, error: "Kunde inte skapa uppgiften" };
   }
 }
 
-/**
- * TOGGLA STATUS (Slutförd / Ej slutförd)
- */
-export async function toggleTodo(id: string, completed: boolean) {
+export async function updateTodoStatus(id: string, completed: boolean) {
   try {
     await db.todo.update({
       where: { id },
-      data: { completed: !completed },
-    })
-
-    revalidatePath("/")
-    return { success: true }
+      data: { completed },
+    });
+    revalidatePath("/");
+    return { success: true };
   } catch (error) {
-    console.error("Database error:", error)
-    return { error: "Kunde inte uppdatera status." }
+    return { success: false };
   }
 }
 
-/**
- * RADERA UPPGIFT
- */
 export async function deleteTodo(id: string) {
   try {
     await db.todo.delete({
       where: { id },
-    })
-
-    revalidatePath("/")
-    return { success: true }
+    });
+    revalidatePath("/");
+    return { success: true };
   } catch (error) {
-    console.error("Database error:", error)
-    return { error: "Kunde inte radera uppgiften." }
+    return { success: false };
   }
 }
