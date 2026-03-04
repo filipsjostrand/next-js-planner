@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { Check, RefreshCw, Calendar as CalendarIcon } from "lucide-react"
 import { createTodo } from "@/app/actions/todo"
-import { RecurrenceType } from "@prisma/client"
 import {
   Select,
   SelectContent,
@@ -15,6 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+
+// Lokalt definierad typ för att undvika import-fel från Prisma i produktionsmiljö
+type RecurrenceType = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
 
 const COLORS = [
   { name: "Standard", bg: "bg-card", border: "border-border", value: "default" },
@@ -36,14 +38,14 @@ const DAYS = [
 ]
 
 interface TodoFormProps {
-  date: string // Detta blir nu "initialDate"
+  date: string // Detta fungerar som initialDate
   userId: string
   onSuccess: () => void
 }
 
 export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps) {
   const [title, setTitle] = useState("")
-  const [date, setDate] = useState(initialDate) // State för att kunna ändra datumet
+  const [date, setDate] = useState(initialDate)
   const [time, setTime] = useState("12:00")
   const [selectedColor, setSelectedColor] = useState("default")
   const [isPending, setIsPending] = useState(false)
@@ -66,7 +68,7 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
     try {
       const result = await createTodo({
         title,
-        date, // Skickar det valda datumet från state
+        date,
         time,
         color: selectedColor,
         recurrence,
@@ -103,7 +105,7 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
           />
         </div>
 
-        {/* Datum och Tid i samma rad */}
+        {/* Datum och Tid */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="date">Datum</Label>
@@ -112,7 +114,7 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
                 id="date"
                 type="date"
                 value={date}
-                min={new Date().toISOString().split("T")[0]} // Kan inte välja datum i dåtid
+                min={new Date().toISOString().split("T")[0]}
                 onChange={(e) => setDate(e.target.value)}
                 required
                 className="pl-9"
@@ -164,7 +166,7 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
           <div className="space-y-2">
             <Select
               value={recurrence}
-              onValueChange={(value) => setRecurrence(value as RecurrenceType)}
+              onValueChange={(value: RecurrenceType) => setRecurrence(value)}
             >
               <SelectTrigger className="bg-background">
                 <SelectValue placeholder="Välj typ" />
