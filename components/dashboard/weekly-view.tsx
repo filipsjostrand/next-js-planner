@@ -12,7 +12,6 @@ import {
   eachDayOfInterval,
   endOfWeek,
   isSameMonth,
-  isSameDay,
   addMonths,
   subMonths,
   parseISO,
@@ -40,7 +39,8 @@ import { TodoForm } from "./todo-form"
 import { ModeToggle } from "@/components/mode-toggle"
 import { toggleTodo, deleteTodo } from "@/app/actions/todo"
 
-interface Todo {
+// EXPORTERAT INTERFACE: Detta gör att page.tsx kan använda samma typ
+export interface Todo {
   id: string
   title: string
   date: string
@@ -50,6 +50,7 @@ interface Todo {
   recurrence: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY"
   interval: number
   daysOfWeek: string | null
+  userId: string
 }
 
 interface WeeklyViewProps {
@@ -95,7 +96,6 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
   }
 
   const shouldShowTodo = (todo: Todo, targetDate: Date) => {
-    // Vi normaliserar alla datum till midnatt för att undvika tidsskillnadsfel
     const normalizedTarget = startOfDay(targetDate)
     const todoStartDate = startOfDay(parseISO(todo.date))
     const targetDateStr = format(normalizedTarget, "yyyy-MM-dd")
@@ -137,7 +137,6 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
 
   return (
     <div className="flex flex-col h-full w-full bg-background text-foreground">
-      {/* NAVIGATION */}
       <div className="flex flex-col md:flex-row items-center justify-between p-4 border-b bg-muted/20 gap-4">
         <div className="flex items-center gap-4">
           <div className="flex flex-col">
@@ -177,7 +176,6 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
         </div>
       </div>
 
-      {/* GRID */}
       <div className={cn(
         "grid flex-1 overflow-auto bg-border gap-[1px]",
         view === "week" ? "grid-cols-1 md:grid-cols-7" : "grid-cols-7"
@@ -186,7 +184,6 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
           const isToday = isTodayCheck(day)
           const isCurrentMonth = isSameMonth(day, monthStart)
           const dateStr = format(day, "yyyy-MM-dd")
-          // Här filtrerar vi ALLA initialTodos (även admins om de skickats med)
           const dayTodos = initialTodos.filter(todo => shouldShowTodo(todo, day))
 
           return (
@@ -216,7 +213,6 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
                 )}
               </div>
 
-              {/* TODO LISTA */}
               <div className="flex-1 space-y-1 overflow-y-auto min-h-0">
                 {dayTodos.length > 0 ? (
                   dayTodos.map(todo => (

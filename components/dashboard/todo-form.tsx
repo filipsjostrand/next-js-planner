@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-import { Check, RefreshCw } from "lucide-react"
+import { Check, RefreshCw, Calendar as CalendarIcon } from "lucide-react"
 import { createTodo } from "@/app/actions/todo"
-import { RecurrenceType } from "@prisma/client" // Importera korrekt Enum-typ
+import { RecurrenceType } from "@prisma/client"
 import {
   Select,
   SelectContent,
@@ -35,20 +35,20 @@ const DAYS = [
   { id: "7", label: "S" },
 ]
 
-// Uppdaterat interface med userId
 interface TodoFormProps {
-  date: string
+  date: string // Detta blir nu "initialDate"
   userId: string
   onSuccess: () => void
 }
 
-export function TodoForm({ date, userId, onSuccess }: TodoFormProps) {
+export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps) {
   const [title, setTitle] = useState("")
+  const [date, setDate] = useState(initialDate) // State för att kunna ändra datumet
   const [time, setTime] = useState("12:00")
   const [selectedColor, setSelectedColor] = useState("default")
   const [isPending, setIsPending] = useState(false)
 
-  // Återkommande logik med korrekt Prisma-typ
+  // Återkommande logik
   const [recurrence, setRecurrence] = useState<RecurrenceType>("NONE")
   const [interval, setIntervalValue] = useState(1)
   const [selectedDays, setSelectedDays] = useState<string[]>([])
@@ -66,13 +66,13 @@ export function TodoForm({ date, userId, onSuccess }: TodoFormProps) {
     try {
       const result = await createTodo({
         title,
-        date,
+        date, // Skickar det valda datumet från state
         time,
         color: selectedColor,
-        recurrence, // Nu typ-säker
+        recurrence,
         interval,
         daysOfWeek: selectedDays.length > 0 ? selectedDays.join(",") : null,
-        userId, // Skickar med userId från props
+        userId,
       })
 
       if (result.success) {
@@ -103,7 +103,24 @@ export function TodoForm({ date, userId, onSuccess }: TodoFormProps) {
           />
         </div>
 
+        {/* Datum och Tid i samma rad */}
         <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="date">Datum</Label>
+            <div className="relative">
+              <Input
+                id="date"
+                type="date"
+                value={date}
+                min={new Date().toISOString().split("T")[0]} // Kan inte välja datum i dåtid
+                onChange={(e) => setDate(e.target.value)}
+                required
+                className="pl-9"
+              />
+              <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="time">Tidpunkt</Label>
             <Input
@@ -113,26 +130,27 @@ export function TodoForm({ date, userId, onSuccess }: TodoFormProps) {
               onChange={(e) => setTime(e.target.value)}
             />
           </div>
+        </div>
 
-          <div className="space-y-2">
-            <Label>Färg</Label>
-            <div className="flex flex-wrap gap-2 pt-1">
-              {COLORS.map((color) => (
-                <button
-                  key={color.value}
-                  type="button"
-                  onClick={() => setSelectedColor(color.value)}
-                  className={cn(
-                    "h-8 w-8 rounded-full border-2 transition-all flex items-center justify-center",
-                    color.bg,
-                    color.border,
-                    selectedColor === color.value ? "ring-2 ring-primary ring-offset-2 scale-110" : "opacity-70"
-                  )}
-                >
-                  {selectedColor === color.value && <Check className="h-4 w-4 text-slate-900" />}
-                </button>
-              ))}
-            </div>
+        {/* Färgval */}
+        <div className="space-y-2">
+          <Label>Färg</Label>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {COLORS.map((color) => (
+              <button
+                key={color.value}
+                type="button"
+                onClick={() => setSelectedColor(color.value)}
+                className={cn(
+                  "h-8 w-8 rounded-full border-2 transition-all flex items-center justify-center",
+                  color.bg,
+                  color.border,
+                  selectedColor === color.value ? "ring-2 ring-primary ring-offset-2 scale-110" : "opacity-70"
+                )}
+              >
+                {selectedColor === color.value && <Check className="h-4 w-4 text-slate-900" />}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -208,7 +226,7 @@ export function TodoForm({ date, userId, onSuccess }: TodoFormProps) {
         <Button variant="outline" type="button" onClick={onSuccess} disabled={isPending}>
           Avbryt
         </Button>
-        <Button type="submit" disabled={isPending}>
+        <Button type="submit" disabled={isPending} className="bg-primary">
           {isPending ? "Sparar..." : "Spara i kalendern"}
         </Button>
       </div>

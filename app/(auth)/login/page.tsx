@@ -107,7 +107,7 @@ function LoginContent() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="password">Lösenord</Label>
-              <Link href="/forgot-password" size="xs" className="text-xs text-primary hover:underline font-medium">
+              <Link href="/forgot-password" className="text-xs text-primary hover:underline font-medium">
                 Glömt?
               </Link>
             </div>

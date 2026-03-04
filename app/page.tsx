@@ -1,33 +1,22 @@
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { WeeklyView } from "@/components/dashboard/weekly-view";
+import { WeeklyView, type Todo } from "@/components/dashboard/weekly-view";
 import { PostItGrid } from "@/components/dashboard/post-it-grid";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { Button } from "@/components/ui/button";
 import { UserSelector } from "@/components/dashboard/user-selector";
+import { AddTodoButton } from "@/components/dashboard/add-todo-button";
 import {
-  PlusCircle,
   StickyNote,
   Calendar as CalendarIcon,
   User as UserIcon,
-  ShieldAlert
+  ShieldAlert,
+  ShieldCheck
 } from "lucide-react";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
-
-// Gränssnitt för att slippa 'any'
-interface Todo {
-  id: string;
-  title: string;
-  date: Date | string;
-  time: string | null;
-  color: string;
-  completed: boolean;
-  recurrence: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
-  interval: number;
-  userId: string;
-}
 
 interface PostIt {
   id: string;
@@ -53,7 +42,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const isViewingOthers = viewUserId !== loggedInUserId;
   const isGuest = session.user.role === "GUEST";
 
-  // Hämta data
   const [groupMembers, todosRaw, postItsRaw] = await Promise.all([
     db.user.findMany({
       where: { groupId: session.user.groupId },
@@ -68,21 +56,27 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     }).catch(() => [])
   ]);
 
-  // Debug-loggar i terminalen
-  console.log("--- DASHBOARD DEBUG ---");
-  console.log("Visar data för:", viewUserId);
-  console.log("Antal todos funna:", todosRaw.length);
+  // Här transformerar vi datan utan "instanceof" för att undvika TS-felet
+  const serializedTodos: Todo[] = todosRaw.map((todo): Todo => {
+    // Eftersom Prisma säger att todo.date redan är en string,
+    // splittar vi den direkt för att få formatet YYYY-MM-DD
+    const dateString = todo.date.split('T')[0];
 
-  // Typsäker transformering (tar bort 'any')
-  const serializedTodos = (todosRaw as unknown as Todo[]).map(todo => ({
-    ...todo,
-    date: todo.date instanceof Date
-      ? todo.date.toISOString().split('T')[0]
-      : String(todo.date).split('T')[0],
-    recurrence: todo.recurrence || "NONE",
-  }));
+    return {
+      id: todo.id,
+      title: todo.title,
+      date: dateString,
+      time: todo.time,
+      color: todo.color,
+      completed: todo.completed,
+      // Vi mappar enumen explicit för att matcha WeeklyView-typen
+      recurrence: todo.recurrence as "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY",
+      interval: todo.interval,
+      daysOfWeek: todo.daysOfWeek,
+      userId: todo.userId
+    };
+  });
 
-  const postIts = postItsRaw as unknown as PostIt[];
   const currentViewedUserName = groupMembers.find(m => m.id === viewUserId)?.name || session.user.name;
 
   return (
@@ -97,15 +91,26 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </div>
 
           <div className="flex items-center gap-3">
+            {session.user.role === "ADMIN" && (
+              <Link href="/admin">
+                <Button variant="ghost" size="sm" className="gap-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50">
+                  <ShieldCheck className="h-4 w-4" />
+                  Admin
+                </Button>
+              </Link>
+            )}
+
             {isGuest && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-amber-700 text-xs font-bold animate-pulse">
+              <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-amber-700 text-xs font-bold">
                 <ShieldAlert className="h-3 w-3" /> GÄSTLÄGE
               </div>
             )}
+
             <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full text-sm font-medium">
               <UserIcon className="h-4 w-4 text-slate-400" />
               {session.user.name}
             </div>
+
             <LogoutButton />
           </div>
         </div>
@@ -123,7 +128,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* NYA CLIENT-KOMPONENTEN FÖR VAL AV ANVÄNDARE */}
             <UserSelector
               members={groupMembers}
               currentViewId={viewUserId}
@@ -131,9 +135,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             />
 
             {!isViewingOthers && !isGuest && (
-              <Button size="sm" className="bg-primary hover:bg-primary/90 shadow-md">
-                <PlusCircle className="mr-2 h-4 w-4" /> Ny Uppgift
-              </Button>
+              <AddTodoButton userId={loggedInUserId} />
             )}
           </div>
         </div>
@@ -155,7 +157,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </div>
           <div className="bg-slate-50/50 rounded-3xl p-6 border-2 border-dashed border-slate-200">
             <PostItGrid
-              initialNotes={postIts}
+              initialNotes={postItsRaw as PostIt[]}
               isReadOnly={isViewingOthers || isGuest}
               viewUserId={viewUserId}
             />
