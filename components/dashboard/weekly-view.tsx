@@ -284,7 +284,7 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
                     {!isReadOnly && (
                       <button
                         onClick={() => handleDelete(todo.id)}
-                        className="opacity-0 group-hover/todo:opacity-100 transition-opacity p-1 hover:text-red-500 rounded bg-background/20"
+                        className="opacity-50 group-hover/todo:opacity-100 transition-opacity p-1 hover:text-red-500 rounded bg-background/20"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
