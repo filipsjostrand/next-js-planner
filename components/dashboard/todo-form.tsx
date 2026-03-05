@@ -123,7 +123,7 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 w-25 ml-auto mr-2">
             <Label htmlFor="time">Tidpunkt</Label>
             <Input
               id="time"
