@@ -15,6 +15,27 @@ interface CreateTodoInput {
   userId: string;
 }
 
+// Hjälpfunktion för att kontrollera behörighet
+async function checkPermission(todoId: string) {
+  const session = await auth();
+  if (!session || !session.user) return { allowed: false, error: "Ej inloggad" };
+
+  const todo = await db.todo.findUnique({
+    where: { id: todoId },
+    select: { userId: true }
+  });
+
+  if (!todo) return { allowed: false, error: "Uppgiften hittades inte" };
+
+  const user = session.user as { id: string, role?: string };
+  const isOwner = todo.userId === user.id;
+  const isAdmin = user.role === "ADMIN";
+
+  if (!isOwner && !isAdmin) return { allowed: false, error: "Behörighet saknas" };
+
+  return { allowed: true, userId: user.id };
+}
+
 export async function createTodo(data: CreateTodoInput) {
   const session = await auth();
   if (!session || !session.user) {
@@ -44,30 +65,37 @@ export async function createTodo(data: CreateTodoInput) {
   }
 }
 
-export async function toggleTodo(id: string, completed: boolean) {
-  const session = await auth();
-  if (!session || !session.user) {
-    return { success: false, error: "Ej inloggad" };
-  }
+export async function updateTodo(id: string, data: Partial<CreateTodoInput>) {
+  const permission = await checkPermission(id);
+  if (!permission.allowed) return { success: false, error: permission.error };
 
   try {
-    const todo = await db.todo.findUnique({
+    const updatedTodo = await db.todo.update({
       where: { id },
-      select: { userId: true }
+      data: {
+        title: data.title,
+        date: data.date,
+        time: data.time !== undefined ? data.time : undefined,
+        color: data.color,
+        recurrence: data.recurrence,
+        interval: data.interval,
+        daysOfWeek: data.daysOfWeek,
+      },
     });
 
-    if (!todo) {
-      return { success: false, error: "Uppgiften hittades inte" };
-    }
+    revalidatePath("/");
+    return { success: true, todo: updatedTodo };
+  } catch (error) {
+    console.error("Fel vid uppdatering av todo:", error);
+    return { success: false, error: "Kunde inte uppdatera uppgiften" };
+  }
+}
 
-    const user = session.user as { id: string, role?: string };
-    const isOwner = todo.userId === user.id;
-    const isAdmin = user.role === "ADMIN";
+export async function toggleTodo(id: string, completed: boolean) {
+  const permission = await checkPermission(id);
+  if (!permission.allowed) return { success: false, error: permission.error };
 
-    if (!isOwner && !isAdmin) {
-      return { success: false, error: "Behörighet saknas" };
-    }
-
+  try {
     await db.todo.update({
       where: { id },
       data: { completed },
@@ -82,32 +110,10 @@ export async function toggleTodo(id: string, completed: boolean) {
 }
 
 export async function deleteTodo(id: string) {
-  const session = await auth();
-  if (!session || !session.user) {
-    return { success: false, error: "Ej inloggad" };
-  }
+  const permission = await checkPermission(id);
+  if (!permission.allowed) return { success: false, error: permission.error };
 
   try {
-    // 1. Hitta todon för att se vem den tillhör
-    const todo = await db.todo.findUnique({
-      where: { id },
-      select: { userId: true }
-    });
-
-    if (!todo) {
-      return { success: false, error: "Uppgiften hittades inte" };
-    }
-
-    // 2. Kontrollera behörighet
-    const user = session.user as { id: string, role?: string };
-    const isOwner = todo.userId === user.id;
-    const isAdmin = user.role === "ADMIN";
-
-    if (!isOwner && !isAdmin) {
-      return { success: false, error: "Du har inte behörighet att ta bort denna uppgift" };
-    }
-
-    // 3. Radera
     await db.todo.delete({
       where: { id },
     });

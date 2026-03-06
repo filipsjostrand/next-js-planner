@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-import { Check, RefreshCw, Calendar as CalendarIcon } from "lucide-react"
-import { createTodo } from "@/app/actions/todo"
+import { Check, RefreshCw, Calendar as CalendarIcon, Trash2 } from "lucide-react"
+import { updateTodo, deleteTodo } from "@/app/actions/todo"
 import {
   Select,
   SelectContent,
@@ -14,8 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Todo } from "./weekly-view"
 
-// Lokalt definierad typ för att undvika import-fel från Prisma i produktionsmiljö
+// Typdefinitioner
 type RecurrenceType = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
 
 const COLORS = [
@@ -37,23 +38,25 @@ const DAYS = [
   { id: "7", label: "S" },
 ]
 
-interface TodoFormProps {
-  date: string // Detta fungerar som initialDate
-  userId: string
+interface EditTodoFormProps {
+  todo: Todo
   onSuccess: () => void
 }
 
-export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps) {
-  const [title, setTitle] = useState("")
-  const [date, setDate] = useState(initialDate)
-  const [time, setTime] = useState("12:00")
-  const [selectedColor, setSelectedColor] = useState("default")
+export function EditTodoForm({ todo, onSuccess }: EditTodoFormProps) {
+  // Initiera state med befintliga värden från todon
+  const [title, setTitle] = useState(todo.title)
+  const [date, setDate] = useState(todo.date)
+  const [time, setTime] = useState(todo.time || "12:00")
+  const [selectedColor, setSelectedColor] = useState(todo.color)
   const [isPending, setIsPending] = useState(false)
 
   // Återkommande logik
-  const [recurrence, setRecurrence] = useState<RecurrenceType>("NONE")
-  const [interval, setIntervalValue] = useState(1)
-  const [selectedDays, setSelectedDays] = useState<string[]>([])
+  const [recurrence, setRecurrence] = useState<RecurrenceType>(todo.recurrence)
+  const [interval, setIntervalValue] = useState(todo.interval)
+  const [selectedDays, setSelectedDays] = useState<string[]>(
+    todo.daysOfWeek ? todo.daysOfWeek.split(",") : []
+  )
 
   const toggleDay = (dayId: string) => {
     setSelectedDays(prev =>
@@ -66,7 +69,7 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
     setIsPending(true)
 
     try {
-      const result = await createTodo({
+      const result = await updateTodo(todo.id, {
         title,
         date,
         time,
@@ -74,16 +77,33 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
         recurrence,
         interval,
         daysOfWeek: selectedDays.length > 0 ? selectedDays.join(",") : null,
-        userId,
       })
 
       if (result.success) {
         onSuccess()
       } else {
-        alert(result.error || "Något gick fel")
+        alert(result.error || "Något gick fel vid uppdatering")
       }
     } catch (error) {
       console.error("Fel vid sparande:", error)
+    } finally {
+      setIsPending(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!confirm("Vill du verkligen radera denna uppgift?")) return
+
+    setIsPending(true)
+    try {
+      const result = await deleteTodo(todo.id)
+      if (result.success) {
+        onSuccess()
+      } else {
+        alert(result.error || "Kunde inte radera uppgiften")
+      }
+    } catch (error) {
+      console.error("Fel vid borttagning:", error)
     } finally {
       setIsPending(false)
     }
@@ -100,7 +120,6 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
             placeholder="Ex: Träna, Handla..."
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            autoFocus
             required
           />
         </div>
@@ -114,7 +133,6 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
                 id="date"
                 type="date"
                 value={date}
-                min={new Date().toISOString().split("T")[0]}
                 onChange={(e) => setDate(e.target.value)}
                 required
                 className="pl-9"
@@ -224,13 +242,26 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
         </div>
       </div>
 
-      <div className="flex justify-end gap-2 border-t pt-4">
-        <Button variant="outline" type="button" onClick={onSuccess} disabled={isPending}>
-          Avbryt
+      <div className="flex justify-between gap-2 border-t pt-4">
+        <Button
+          variant="ghost"
+          type="button"
+          onClick={handleDelete}
+          disabled={isPending}
+          className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+        >
+          <Trash2 className="h-4 w-4 mr-2" />
+          Radera
         </Button>
-        <Button type="submit" disabled={isPending} className="bg-primary">
-          {isPending ? "Sparar..." : "Spara i kalendern"}
-        </Button>
+
+        <div className="flex gap-2">
+          <Button variant="outline" type="button" onClick={onSuccess} disabled={isPending}>
+            Avbryt
+          </Button>
+          <Button type="submit" disabled={isPending} className="bg-primary">
+            {isPending ? "Sparar..." : "Spara ändringar"}
+          </Button>
+        </div>
       </div>
     </form>
   )

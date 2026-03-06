@@ -5,7 +5,6 @@ import {
   addDays,
   format,
   startOfWeek,
-  subDays,
   getWeek,
   startOfMonth,
   endOfMonth,
@@ -24,7 +23,18 @@ import {
   startOfDay
 } from "date-fns"
 import { sv } from "date-fns/locale"
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, Check, Trash2, RefreshCw, Eye } from "lucide-react"
+import {
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Calendar as CalendarIcon,
+  Clock,
+  Check,
+  Trash2,
+  RefreshCw,
+  Eye,
+  Download
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
@@ -36,8 +46,10 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { TodoForm } from "./todo-form"
+import { EditTodoForm } from "./edit-todo-form"
 import { ModeToggle } from "@/components/mode-toggle"
 import { toggleTodo, deleteTodo } from "@/app/actions/todo"
+import * as XLSX from "xlsx"
 
 export interface Todo {
   id: string
@@ -74,6 +86,7 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
   const [currentDate, setCurrentDate] = useState(new Date())
   const [isOpen, setIsOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [editingTodo, setEditingTodo] = useState<Todo | null>(null)
   const [todos, setTodos] = useState<Todo[]>(initialTodos)
 
   useEffect(() => {
@@ -99,7 +112,8 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
     setIsOpen(true)
   }
 
-  const handleToggle = async (todoId: string, currentStatus: boolean) => {
+  const handleToggle = async (e: React.MouseEvent, todoId: string, currentStatus: boolean) => {
+    e.stopPropagation()
     if (isReadOnly) return
     const newStatus = !currentStatus
     setTodos(prev => prev.map(t => t.id === todoId ? { ...t, completed: newStatus } : t))
@@ -110,7 +124,8 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
     }
   }
 
-  const handleDelete = async (todoId: string) => {
+  const handleDelete = async (e: React.MouseEvent, todoId: string) => {
+    e.stopPropagation()
     if (!confirm("Vill du radera uppgiften?")) return
     const originalTodos = [...todos]
     setTodos(prev => prev.filter(t => t.id !== todoId))
@@ -118,6 +133,34 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
     if (!result.success) {
       setTodos(originalTodos)
       alert("Kunde inte radera uppgiften.")
+    }
+  }
+
+  const handleExport = (formatType: 'txt' | 'excel') => {
+    const dataToExport = todos.map(t => ({
+      Titel: t.title,
+      Datum: t.date,
+      Tid: t.time || "Ingen tid",
+      Status: t.completed ? "Klar" : "Ej klar",
+      Upprepning: t.recurrence
+    }));
+
+    if (formatType === 'excel') {
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Planering");
+      XLSX.writeFile(workbook, `Planering_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    } else {
+      const txtContent = dataToExport
+        .map(t => `[${t.Status}] ${t.Datum} ${t.Tid}: ${t.Titel}`)
+        .join("\n");
+
+      const blob = new Blob([txtContent], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Planering_${format(new Date(), "yyyy-MM-dd")}.txt`;
+      link.click();
     }
   }
 
@@ -190,6 +233,26 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
 
         <div className="flex gap-2 items-center">
           <ModeToggle />
+
+          <div className="flex border rounded-md overflow-hidden shadow-sm">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleExport('excel')}
+              className="h-8 px-2 text-[10px] font-bold border-r bg-background hover:bg-muted"
+            >
+              <Download className="h-3 w-3 mr-1" /> EXCEL
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleExport('txt')}
+              className="h-8 px-2 text-[10px] font-bold bg-background hover:bg-muted"
+            >
+              TXT
+            </Button>
+          </div>
+
           <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())} className="h-8 px-3 text-xs font-bold">
             IDAG
           </Button>
@@ -209,7 +272,6 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
           const isCurrentMonth = isSameMonth(day, monthStart)
           const dateStr = format(day, "yyyy-MM-dd")
 
-          // SORTERING: Tidsordning, tider som saknas hamnar sist
           const dayTodos = todos
             .filter(todo => shouldShowTodo(todo, day))
             .sort((a, b) => {
@@ -222,7 +284,7 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
           return (
             <div key={day.toString()} className={cn(
               "flex flex-col min-h-[160px] p-2 transition-colors",
-              isToday ? "bg-background z-10" : "bg-slate-50/80",
+              isToday ? "bg-background z-10" : "bg-slate-125/80",
               !isCurrentMonth && view === "month" && "opacity-40 grayscale-[0.5]"
             )}>
               <div className="mb-2">
@@ -250,15 +312,16 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
                 {dayTodos.map(todo => (
                   <div
                     key={`${todo.id}-${dateStr}`}
+                    onClick={() => !isReadOnly && setEditingTodo(todo)}
                     className={cn(
-                      "group/todo p-1.5 rounded border text-[11px] font-bold shadow-sm transition-all flex items-start gap-2 relative",
+                      "group/todo p-1.5 rounded border text-[11px] font-bold shadow-sm transition-all flex items-start gap-2 relative cursor-pointer hover:ring-1 ring-primary/30",
                       getColorClass(todo.color),
                       todo.completed && "opacity-50 grayscale-[0.3]"
                     )}
                   >
                     {!isReadOnly ? (
                       <button
-                        onClick={() => handleToggle(todo.id, todo.completed)}
+                        onClick={(e) => handleToggle(e, todo.id, todo.completed)}
                         className={cn(
                           "mt-0.5 w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors",
                           todo.completed ? "bg-green-600 border-green-600 text-white" : "bg-white/80 border-black/10 dark:bg-black/20"
@@ -274,7 +337,7 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
                       <div className="flex items-center gap-1 opacity-70 italic mb-0.5 text-[9px]">
                         <Clock className="h-2.5 w-2.5" />
                         {todo.time || "Ingen tid"}
-                        {todo.recurrence !== "NONE" && <RefreshCw className="h-2.5 w-2.5 ml-1 text-primary" style={{ animationDuration: '3s' }} />}
+                        {todo.recurrence !== "NONE" && <RefreshCw className="h-2.5 w-2.5 ml-1 text-primary animate-spin-slow" />}
                       </div>
                       <div className={cn("truncate leading-tight", todo.completed && "line-through")}>
                         {todo.title}
@@ -283,7 +346,7 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
 
                     {!isReadOnly && (
                       <button
-                        onClick={() => handleDelete(todo.id)}
+                        onClick={(e) => handleDelete(e, todo.id)}
                         className="opacity-50 group-hover/todo:opacity-100 transition-opacity p-1 hover:text-red-500 rounded bg-background/20"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -318,6 +381,21 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
               date={selectedDate}
               userId={currentUserId}
               onSuccess={() => setIsOpen(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingTodo} onOpenChange={() => setEditingTodo(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Redigera planering</DialogTitle>
+            <DialogDescription>Ändra detaljer för din uppgift.</DialogDescription>
+          </DialogHeader>
+          {editingTodo && (
+            <EditTodoForm
+              todo={editingTodo}
+              onSuccess={() => setEditingTodo(null)}
             />
           )}
         </DialogContent>

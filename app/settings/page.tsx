@@ -30,10 +30,10 @@ export default async function SettingsPage() {
 
       {/* SEKTION: ALLA UPPGIFTER */}
       <section className="bg-white rounded-xl border p-6 shadow-sm">
-        <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+        <h2 className="text-lg text-black font-bold mb-4 flex items-center gap-2">
           Dina sparade uppgifter ({userTodos.length})
         </h2>
-        <div className="divide-y">
+        <div className="divide-y text-black">
           {userTodos.length === 0 && <p className="text-muted-foreground text-sm">Inga uppgifter hittades.</p>}
           {userTodos.map((todo) => (
             <div key={todo.id} className="py-3 flex items-center justify-between group">

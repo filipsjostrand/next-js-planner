@@ -169,7 +169,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden min-h-[600px] flex flex-col">
+        <div className="bg-mist-300 rounded-2xl border border-slate-200 shadow-xl overflow-hidden min-h-[600px] flex flex-col">
           <WeeklyView
             initialTodos={serializedTodos}
             isReadOnly={isReadOnly}
