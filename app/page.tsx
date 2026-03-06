@@ -138,10 +138,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               </div>
             )}
 
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full text-sm font-medium">
-              <UserIcon className="h-4 w-4 text-slate-400" />
-              {session.user.name}
-            </div>
+        <Link href="/settings" className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 transition-colors rounded-full text-sm font-medium cursor-pointer">
+          <UserIcon className="h-4 w-4 text-slate-400" />
+          {session.user.name}
+        </Link>
 
             <LogoutButton />
           </div>
