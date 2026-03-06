@@ -5,6 +5,7 @@ import {
   addDays,
   format,
   startOfWeek,
+  subDays,
   getWeek,
   startOfMonth,
   endOfMonth,
@@ -33,7 +34,9 @@ import {
   Trash2,
   RefreshCw,
   Eye,
-  Download
+  Download,
+  FileSpreadsheet, // Ikon för Excel
+  FileText        // Ikon för TXT
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -204,6 +207,7 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
 
   return (
     <div className="flex flex-col h-full w-full bg-background text-foreground">
+      {/* HEADER */}
       <div className="flex flex-col md:flex-row items-center justify-between p-4 border-b bg-muted/20 gap-4">
         <div className="flex items-center gap-4">
           <div className="flex flex-col">
@@ -233,26 +237,6 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
 
         <div className="flex gap-2 items-center">
           <ModeToggle />
-
-          <div className="flex border rounded-md overflow-hidden shadow-sm">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleExport('excel')}
-              className="h-8 px-2 text-[10px] font-bold border-r bg-background hover:bg-muted"
-            >
-              <Download className="h-3 w-3 mr-1" /> EXCEL
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleExport('txt')}
-              className="h-8 px-2 text-[10px] font-bold bg-background hover:bg-muted"
-            >
-              TXT
-            </Button>
-          </div>
-
           <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())} className="h-8 px-3 text-xs font-bold">
             IDAG
           </Button>
@@ -263,6 +247,7 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
         </div>
       </div>
 
+      {/* KALENDER GRID */}
       <div className={cn(
         "grid flex-1 overflow-auto bg-border gap-[1px]",
         view === "week" ? "grid-cols-1 md:grid-cols-7" : "grid-cols-7"
@@ -370,6 +355,30 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
         })}
       </div>
 
+      {/* EXPORT-SEKTION UNDER SCHEMAT */}
+      <div className="p-4 border-t bg-muted/10 flex items-center justify-center gap-4">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Exportera:</span>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handleExport('excel')}
+          className="h-9 px-4 text-xs font-bold gap-2 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-colors"
+        >
+          <FileSpreadsheet className="h-4 w-4 text-green-600" />
+          Excel (.xlsx)
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handleExport('txt')}
+          className="h-9 px-4 text-xs font-bold gap-2 hover:bg-slate-50 transition-colors"
+        >
+          <FileText className="h-4 w-4 text-slate-600" />
+          Textfil (.txt)
+        </Button>
+      </div>
+
+      {/* DIALOGS */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
