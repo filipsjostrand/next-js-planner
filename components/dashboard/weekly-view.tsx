@@ -34,9 +34,8 @@ import {
   Trash2,
   RefreshCw,
   Eye,
-  Download,
-  FileSpreadsheet, // Ikon för Excel
-  FileText        // Ikon för TXT
+  FileSpreadsheet,
+  FileText
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -59,6 +58,7 @@ export interface Todo {
   title: string
   date: string
   time: string | null
+  endTime: string | null // TILLAGD
   color: string
   completed: boolean
   recurrence: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY"
@@ -143,7 +143,8 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
     const dataToExport = todos.map(t => ({
       Titel: t.title,
       Datum: t.date,
-      Tid: t.time || "Ingen tid",
+      Starttid: t.time || "Ingen tid",
+      Sluttid: t.endTime || "-", // LAGT TILL I EXPORT
       Status: t.completed ? "Klar" : "Ej klar",
       Upprepning: t.recurrence
     }));
@@ -155,7 +156,7 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
       XLSX.writeFile(workbook, `Planering_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
     } else {
       const txtContent = dataToExport
-        .map(t => `[${t.Status}] ${t.Datum} ${t.Tid}: ${t.Titel}`)
+        .map(t => `[${t.Status}] ${t.Datum} (${t.Starttid}${t.Sluttid !== "-" ? " - " + t.Sluttid : ""}): ${t.Titel}`)
         .join("\n");
 
       const blob = new Blob([txtContent], { type: "text/plain" });
@@ -321,7 +322,14 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1 opacity-70 italic mb-0.5 text-[9px]">
                         <Clock className="h-2.5 w-2.5" />
-                        {todo.time || "Ingen tid"}
+                        {/* VISNING AV TIDSSPANN */}
+                        <span>{todo.time || "Ingen tid"}</span>
+                        {todo.endTime && (
+                          <>
+                            <span>-</span>
+                            <span>{todo.endTime}</span>
+                          </>
+                        )}
                         {todo.recurrence !== "NONE" && <RefreshCw className="h-2.5 w-2.5 ml-1 text-primary animate-spin-slow" />}
                       </div>
                       <div className={cn("truncate leading-tight", todo.completed && "line-through")}>
@@ -355,7 +363,7 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
         })}
       </div>
 
-      {/* EXPORT-SEKTION UNDER SCHEMAT */}
+      {/* EXPORT-SEKTION */}
       <div className="p-4 border-t bg-muted/10 flex items-center justify-center gap-4">
         <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Exportera:</span>
         <Button

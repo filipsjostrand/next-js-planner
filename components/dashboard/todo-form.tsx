@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-import { Check, RefreshCw, Calendar as CalendarIcon } from "lucide-react"
+import { Check, RefreshCw, Calendar as CalendarIcon, Clock } from "lucide-react"
 import { createTodo } from "@/app/actions/todo"
 import {
   Select,
@@ -15,7 +15,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-// Lokalt definierad typ för att undvika import-fel från Prisma i produktionsmiljö
 type RecurrenceType = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
 
 const COLORS = [
@@ -28,17 +27,12 @@ const COLORS = [
 ]
 
 const DAYS = [
-  { id: "1", label: "M" },
-  { id: "2", label: "T" },
-  { id: "3", label: "O" },
-  { id: "4", label: "T" },
-  { id: "5", label: "F" },
-  { id: "6", label: "L" },
-  { id: "7", label: "S" },
+  { id: "1", label: "M" }, { id: "2", label: "T" }, { id: "3", label: "O" },
+  { id: "4", label: "T" }, { id: "5", label: "F" }, { id: "6", label: "L" }, { id: "7", label: "S" },
 ]
 
 interface TodoFormProps {
-  date: string // Detta fungerar som initialDate
+  date: string
   userId: string
   onSuccess: () => void
 }
@@ -46,11 +40,11 @@ interface TodoFormProps {
 export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps) {
   const [title, setTitle] = useState("")
   const [date, setDate] = useState(initialDate)
-  const [time, setTime] = useState("12:00")
+  const [startTime, setStartTime] = useState("12:00")
+  const [endTime, setEndTime] = useState("") // Ny state för sluttid
   const [selectedColor, setSelectedColor] = useState("default")
   const [isPending, setIsPending] = useState(false)
 
-  // Återkommande logik
   const [recurrence, setRecurrence] = useState<RecurrenceType>("NONE")
   const [interval, setIntervalValue] = useState(1)
   const [selectedDays, setSelectedDays] = useState<string[]>([])
@@ -69,7 +63,8 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
       const result = await createTodo({
         title,
         date,
-        time,
+        time: startTime,
+        endTime: endTime || null, // Skicka med sluttid om den finns
         color: selectedColor,
         recurrence,
         interval,
@@ -105,31 +100,48 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
           />
         </div>
 
-        {/* Datum och Tid */}
+        {/* Datum */}
+        <div className="space-y-2">
+          <Label htmlFor="date">Datum</Label>
+          <div className="relative">
+            <Input
+              id="date"
+              type="date"
+              value={date}
+              min={new Date().toISOString().split("T")[0]}
+              onChange={(e) => setDate(e.target.value)}
+              required
+              className="pl-9"
+            />
+            <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
+          </div>
+        </div>
+
+        {/* Tidpunkter (Start och Slut) */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="date">Datum</Label>
-            <div className="relative">
-              <Input
-                id="date"
-                type="date"
-                value={date}
-                min={new Date().toISOString().split("T")[0]}
-                onChange={(e) => setDate(e.target.value)}
-                required
-                className="pl-9"
-              />
-              <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
-            </div>
+            <Label htmlFor="startTime" className="flex items-center gap-2">
+              <Clock className="h-3 w-3" /> Starttid
+            </Label>
+            <Input
+              id="startTime"
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              required
+            />
           </div>
 
-          <div className="space-y-2 w-25 ml-auto mr-2">
-            <Label htmlFor="time">Tidpunkt</Label>
+          <div className="space-y-2">
+            <Label htmlFor="endTime" className="flex items-center gap-2 text-muted-foreground">
+              Sluttid <span className="text-[10px] font-normal">(valfritt)</span>
+            </Label>
             <Input
-              id="time"
+              id="endTime"
               type="time"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              className="border-dashed"
             />
           </div>
         </div>
@@ -163,23 +175,21 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
             ÅTERKOMMANDE
           </div>
 
-          <div className="space-y-2">
-            <Select
-              value={recurrence}
-              onValueChange={(value: RecurrenceType) => setRecurrence(value)}
-            >
-              <SelectTrigger className="bg-background">
-                <SelectValue placeholder="Välj typ" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="NONE">Ingen upprepning</SelectItem>
-                <SelectItem value="DAILY">Varje dag</SelectItem>
-                <SelectItem value="WEEKLY">Varje vecka</SelectItem>
-                <SelectItem value="MONTHLY">Varje månad</SelectItem>
-                <SelectItem value="YEARLY">Varje år</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <Select
+            value={recurrence}
+            onValueChange={(value: RecurrenceType) => setRecurrence(value)}
+          >
+            <SelectTrigger className="bg-background">
+              <SelectValue placeholder="Välj typ" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="NONE">Ingen upprepning</SelectItem>
+              <SelectItem value="DAILY">Varje dag</SelectItem>
+              <SelectItem value="WEEKLY">Varje vecka</SelectItem>
+              <SelectItem value="MONTHLY">Varje månad</SelectItem>
+              <SelectItem value="YEARLY">Varje år</SelectItem>
+            </SelectContent>
+          </Select>
 
           {recurrence !== "NONE" && (
             <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-2">

@@ -33,9 +33,10 @@ interface PrismaTodo {
   title: string;
   date: string;
   time: string | null;
+  endTime: string | null; // TILLAGD: Berättar för TS att detta fält finns i DB
   color: string;
   completed: boolean;
-  recurrence: string; // Från DB är detta en sträng
+  recurrence: string;
   interval: number;
   daysOfWeek: string | null;
   userId: string;
@@ -90,7 +91,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const serializedTodos: Todo[] = (todosRaw || []).map((todo: PrismaTodo): Todo => {
     const dateString = todo.date ? todo.date.split('T')[0] : "";
 
-    // Säker typ-castning av recurrence istället för any
     const recurrence = (["NONE", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(todo.recurrence)
       ? todo.recurrence
       : "NONE") as RecurrenceType;
@@ -100,6 +100,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       title: todo.title,
       date: dateString,
       time: todo.time,
+      endTime: todo.endTime, // TILLAGD: Skickar med värdet till komponenten
       color: todo.color,
       completed: todo.completed,
       recurrence: recurrence,
@@ -138,10 +139,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               </div>
             )}
 
-        <Link href="/settings" className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 transition-colors rounded-full text-sm font-medium cursor-pointer">
-          <UserIcon className="h-4 w-4 text-slate-400" />
-          {session.user.name}
-        </Link>
+            <Link href="/settings" className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 transition-colors rounded-full text-sm font-medium cursor-pointer">
+              <UserIcon className="h-4 w-4 text-slate-400" />
+              {session.user.name}
+            </Link>
 
             <LogoutButton />
           </div>

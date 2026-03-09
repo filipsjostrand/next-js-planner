@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-import { Check, RefreshCw, Calendar as CalendarIcon, Trash2 } from "lucide-react"
+import { Check, RefreshCw, Calendar as CalendarIcon, Trash2, Clock } from "lucide-react"
 import { updateTodo, deleteTodo } from "@/app/actions/todo"
 import {
   Select,
@@ -47,7 +47,8 @@ export function EditTodoForm({ todo, onSuccess }: EditTodoFormProps) {
   // Initiera state med befintliga värden från todon
   const [title, setTitle] = useState(todo.title)
   const [date, setDate] = useState(todo.date)
-  const [time, setTime] = useState(todo.time || "12:00")
+  const [time, setTime] = useState(todo.time || "")
+  const [endTime, setEndTime] = useState(todo.endTime || "") // LAGT TILL ENDTIME
   const [selectedColor, setSelectedColor] = useState(todo.color)
   const [isPending, setIsPending] = useState(false)
 
@@ -72,7 +73,8 @@ export function EditTodoForm({ todo, onSuccess }: EditTodoFormProps) {
       const result = await updateTodo(todo.id, {
         title,
         date,
-        time,
+        time: time || null,
+        endTime: endTime || null, // SKICKAR MED ENDTIME TILL ACTION
         color: selectedColor,
         recurrence,
         interval,
@@ -124,8 +126,8 @@ export function EditTodoForm({ todo, onSuccess }: EditTodoFormProps) {
           />
         </div>
 
-        {/* Datum och Tid */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* Datum och Tider */}
+        <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="date">Datum</Label>
             <div className="relative">
@@ -141,14 +143,29 @@ export function EditTodoForm({ todo, onSuccess }: EditTodoFormProps) {
             </div>
           </div>
 
-          <div className="space-y-2 w-25 ml-auto mr-2">
-            <Label htmlFor="time">Tidpunkt</Label>
-            <Input
-              id="time"
-              type="time"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="time" className="flex items-center gap-2">
+                <Clock className="h-3 w-3" /> Starttid
+              </Label>
+              <Input
+                id="time"
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="endTime" className="flex items-center gap-2">
+                <Clock className="h-3 w-3" /> Sluttid
+              </Label>
+              <Input
+                id="endTime"
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+              />
+            </div>
           </div>
         </div>
 

@@ -8,6 +8,7 @@ interface CreateTodoInput {
   title: string;
   date: string;
   time?: string | null;
+  endTime?: string | null;
   color: string;
   recurrence: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   interval: number;
@@ -48,6 +49,7 @@ export async function createTodo(data: CreateTodoInput) {
         title: data.title,
         date: data.date,
         time: data.time || null,
+        endTime: data.endTime || null,
         color: data.color,
         completed: false,
         recurrence: data.recurrence,
@@ -75,7 +77,8 @@ export async function updateTodo(id: string, data: Partial<CreateTodoInput>) {
       data: {
         title: data.title,
         date: data.date,
-        time: data.time !== undefined ? data.time : undefined,
+        time: data.time === undefined ? undefined : data.time,
+        endTime: data.endTime === undefined ? undefined : data.endTime,
         color: data.color,
         recurrence: data.recurrence,
         interval: data.interval,

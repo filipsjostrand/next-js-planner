@@ -71,7 +71,8 @@ model Todo {
   id          String         @id @default(cuid())
   title       String
   date        String         // Startdatum
-  time        String?
+  time        String?        // Starttid
+  endTime     String?        // Sluttid (NY)
   color       String         @default("default")
   completed   Boolean        @default(false)
 
