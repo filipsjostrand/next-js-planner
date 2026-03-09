@@ -68,23 +68,25 @@ enum RecurrenceType {
 }
 
 model Todo {
-  id          String         @id @default(cuid())
-  title       String
-  date        String         // Startdatum
-  time        String?        // Starttid
-  endTime     String?        // Sluttid (NY)
-  color       String         @default("default")
-  completed   Boolean        @default(false)
+  id              String         @id @default(cuid())
+  title           String
+  date            String         // Startdatum
+  time            String?        // Starttid
+  endTime         String?        // Sluttid
+  color           String         @default("default")
+  completed       Boolean        @default(false)
 
-  // Återkommande todo-logik
-  recurrence  RecurrenceType @default(NONE)
-  interval    Int            @default(1)    // t.ex. var 2:a vecka (2)
-  daysOfWeek  String?        // Sparas som "1,3,5" (mån, ons, fre)
+  // Håller ihop todos som skapats för hela gruppen
+  groupIdentifier String?
 
-  userId      String
-  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  recurrence      RecurrenceType @default(NONE)
+  interval        Int            @default(1)
+  daysOfWeek      String?
+
+  userId          String
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 }
 
 

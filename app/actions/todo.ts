@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
+import { v4 as uuidv4 } from "uuid";
 
 interface CreateTodoInput {
   title: string;
@@ -14,36 +15,101 @@ interface CreateTodoInput {
   interval: number;
   daysOfWeek?: string | null;
   userId: string;
+  allInGroup?: boolean;
 }
 
-// Hjälpfunktion för att kontrollera behörighet
+interface UpdateTodoInput extends Partial<CreateTodoInput> {
+  updateAllInGroup?: boolean;
+}
+
+/**
+ * Kontrollerar behörighet.
+ * Tillåter ändring om användaren är ägare, admin ELLER tillhör samma grupp som todon.
+ */
 async function checkPermission(todoId: string) {
   const session = await auth();
   if (!session || !session.user) return { allowed: false, error: "Ej inloggad" };
 
+  // Hämta todon och inkludera skaparens gruppId
   const todo = await db.todo.findUnique({
     where: { id: todoId },
-    select: { userId: true }
+    include: {
+      user: {
+        select: { groupId: true }
+      }
+    }
   });
 
   if (!todo) return { allowed: false, error: "Uppgiften hittades inte" };
 
-  const user = session.user as { id: string, role?: string };
-  const isOwner = todo.userId === user.id;
-  const isAdmin = user.role === "ADMIN";
+  // Hämta den inloggade användarens aktuella gruppId
+  const currentUser = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true, role: true, groupId: true }
+  });
 
-  if (!isOwner && !isAdmin) return { allowed: false, error: "Behörighet saknas" };
+  if (!currentUser) return { allowed: false, error: "Användaren hittades inte" };
 
-  return { allowed: true, userId: user.id };
+  const isOwner = todo.userId === currentUser.id;
+  const isAdmin = currentUser.role === "ADMIN";
+  const isInSameGroup = currentUser.groupId && currentUser.groupId === todo.user.groupId;
+
+  // Om användaren varken är ägare, admin eller i samma grupp -> Neka
+  if (!isOwner && !isAdmin && !isInSameGroup) {
+    return { allowed: false, error: "Behörighet saknas" };
+  }
+
+  return {
+    allowed: true,
+    userId: currentUser.id,
+    groupIdentifier: todo.groupIdentifier
+  };
 }
 
 export async function createTodo(data: CreateTodoInput) {
   const session = await auth();
-  if (!session || !session.user) {
-    return { success: false, error: "Du måste vara inloggad" };
-  }
+  if (!session || !session.user) return { success: false, error: "Du måste vara inloggad" };
 
   try {
+    // Säkerställ att intervallet alltid är minst 1
+    const safeInterval = Math.max(1, data.interval || 1);
+
+    if (data.allInGroup) {
+      const user = await db.user.findUnique({
+        where: { id: session.user.id },
+        select: { groupId: true }
+      });
+
+      if (user?.groupId) {
+        const members = await db.user.findMany({
+          where: { groupId: user.groupId },
+          select: { id: true }
+        });
+
+        const sharedGroupId = uuidv4();
+
+        await db.todo.createMany({
+          data: members.map(m => ({
+            title: data.title,
+            date: data.date,
+            time: data.time || null,
+            endTime: data.endTime || null,
+            color: data.color,
+            completed: false,
+            recurrence: data.recurrence,
+            interval: safeInterval,
+            daysOfWeek: data.daysOfWeek || null,
+            userId: m.id,
+            groupIdentifier: sharedGroupId
+          }))
+        });
+
+        revalidatePath("/");
+        return { success: true };
+      }
+    }
+
+    // Skapa en enskild todo om inte allInGroup är valt eller om grupp saknas
     const todo = await db.todo.create({
       data: {
         title: data.title,
@@ -53,7 +119,7 @@ export async function createTodo(data: CreateTodoInput) {
         color: data.color,
         completed: false,
         recurrence: data.recurrence,
-        interval: data.interval,
+        interval: safeInterval,
         daysOfWeek: data.daysOfWeek || null,
         userId: data.userId,
       },
@@ -62,69 +128,90 @@ export async function createTodo(data: CreateTodoInput) {
     revalidatePath("/");
     return { success: true, todo };
   } catch (error) {
-    console.error("Fel vid skapande av todo:", error);
+    console.error("Fel vid skapande:", error);
     return { success: false, error: "Kunde inte skapa uppgiften" };
   }
 }
 
-export async function updateTodo(id: string, data: Partial<CreateTodoInput>) {
+export async function updateTodo(id: string, data: UpdateTodoInput) {
   const permission = await checkPermission(id);
   if (!permission.allowed) return { success: false, error: permission.error };
 
   try {
-    const updatedTodo = await db.todo.update({
-      where: { id },
-      data: {
-        title: data.title,
-        date: data.date,
-        time: data.time === undefined ? undefined : data.time,
-        endTime: data.endTime === undefined ? undefined : data.endTime,
-        color: data.color,
-        recurrence: data.recurrence,
-        interval: data.interval,
-        daysOfWeek: data.daysOfWeek,
-      },
-    });
+    const safeInterval = data.interval !== undefined ? Math.max(1, data.interval) : undefined;
 
-    revalidatePath("/");
-    return { success: true, todo: updatedTodo };
-  } catch (error) {
-    console.error("Fel vid uppdatering av todo:", error);
-    return { success: false, error: "Kunde inte uppdatera uppgiften" };
-  }
-}
+    const updateData = {
+      title: data.title,
+      date: data.date,
+      time: data.time === undefined ? undefined : data.time,
+      endTime: data.endTime === undefined ? undefined : data.endTime,
+      color: data.color,
+      recurrence: data.recurrence,
+      interval: safeInterval,
+      daysOfWeek: data.daysOfWeek,
+    };
 
-export async function toggleTodo(id: string, completed: boolean) {
-  const permission = await checkPermission(id);
-  if (!permission.allowed) return { success: false, error: permission.error };
-
-  try {
-    await db.todo.update({
-      where: { id },
-      data: { completed },
-    });
+    if (data.updateAllInGroup && permission.groupIdentifier) {
+      await db.todo.updateMany({
+        where: { groupIdentifier: permission.groupIdentifier },
+        data: updateData,
+      });
+    } else {
+      await db.todo.update({
+        where: { id },
+        data: updateData,
+      });
+    }
 
     revalidatePath("/");
     return { success: true };
   } catch (error) {
     console.error("Fel vid uppdatering:", error);
-    return { success: false, error: "Kunde inte uppdatera status" };
+    return { success: false, error: "Kunde inte uppdatera" };
   }
 }
 
-export async function deleteTodo(id: string) {
+export async function toggleTodo(id: string, completed: boolean, toggleAllInGroup: boolean = false) {
   const permission = await checkPermission(id);
   if (!permission.allowed) return { success: false, error: permission.error };
 
   try {
-    await db.todo.delete({
-      where: { id },
-    });
+    if (toggleAllInGroup && permission.groupIdentifier) {
+      await db.todo.updateMany({
+        where: { groupIdentifier: permission.groupIdentifier },
+        data: { completed }
+      });
+    } else {
+      await db.todo.update({
+        where: { id },
+        data: { completed }
+      });
+    }
 
     revalidatePath("/");
     return { success: true };
   } catch (error) {
-    console.error("Fel vid borttagning av todo:", error);
-    return { success: false, error: "Något gick fel vid borttagning" };
+    return { success: false, error: "Kunde inte uppdatera status" };
+  }
+}
+
+export async function deleteTodo(id: string, deleteAllInGroup: boolean = false) {
+  const permission = await checkPermission(id);
+  if (!permission.allowed) return { success: false, error: permission.error };
+
+  try {
+    if (deleteAllInGroup && permission.groupIdentifier) {
+      await db.todo.deleteMany({
+        where: { groupIdentifier: permission.groupIdentifier }
+      });
+    } else {
+      await db.todo.delete({ where: { id } });
+    }
+
+    revalidatePath("/");
+    return { success: true };
+  } catch (error) {
+    console.error("Fel vid borttagning:", error);
+    return { success: false, error: "Kunde inte radera" };
   }
 }

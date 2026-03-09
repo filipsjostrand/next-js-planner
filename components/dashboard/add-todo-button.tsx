@@ -8,9 +8,10 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { TodoForm } from "@/components/dashboard/todo-form" // Se till att sökvägen stämmer
+import { TodoForm } from "@/components/dashboard/todo-form"
 import { useRouter } from "next/navigation"
 
 interface AddTodoButtonProps {
@@ -34,6 +35,9 @@ export function AddTodoButton({ userId }: AddTodoButtonProps) {
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Skapa ny uppgift</DialogTitle>
+          <DialogDescription className="sr-only">
+            Fyll i detaljerna nedan för att lägga till en ny uppgift i din planering.
+          </DialogDescription>
         </DialogHeader>
         <TodoForm
           date={today}

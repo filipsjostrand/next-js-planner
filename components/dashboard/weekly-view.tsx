@@ -5,7 +5,6 @@ import {
   addDays,
   format,
   startOfWeek,
-  subDays,
   getWeek,
   startOfMonth,
   endOfMonth,
@@ -21,7 +20,8 @@ import {
   differenceInDays,
   getDay,
   isToday as isTodayCheck,
-  startOfDay
+  startOfDay,
+  subDays
 } from "date-fns"
 import { sv } from "date-fns/locale"
 import {
@@ -58,13 +58,14 @@ export interface Todo {
   title: string
   date: string
   time: string | null
-  endTime: string | null // TILLAGD
+  endTime: string | null
   color: string
   completed: boolean
   recurrence: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY"
   interval: number
   daysOfWeek: string | null
   userId: string
+  groupIdentifier?: string | null
 }
 
 interface WeeklyViewProps {
@@ -115,27 +116,46 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
     setIsOpen(true)
   }
 
-  const handleToggle = async (e: React.MouseEvent, todoId: string, currentStatus: boolean) => {
+  const handleToggle = async (e: React.MouseEvent, todo: Todo) => {
     e.stopPropagation()
     if (isReadOnly) return
-    const newStatus = !currentStatus
-    setTodos(prev => prev.map(t => t.id === todoId ? { ...t, completed: newStatus } : t))
-    const result = await toggleTodo(todoId, newStatus)
+
+    const newStatus = !todo.completed
+    const originalTodos = [...todos]
+
+    setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, completed: newStatus } : t))
+
+    const result = await toggleTodo(todo.id, newStatus)
     if (!result.success) {
-      setTodos(prev => prev.map(t => t.id === todoId ? { ...t, completed: currentStatus } : t))
-      alert("Kunde inte uppdatera status.")
+      setTodos(originalTodos)
+      alert(result.error || "Kunde inte uppdatera status.")
     }
   }
 
-  const handleDelete = async (e: React.MouseEvent, todoId: string) => {
+  const handleDelete = async (e: React.MouseEvent, todo: Todo) => {
     e.stopPropagation()
-    if (!confirm("Vill du radera uppgiften?")) return
+    if (isReadOnly) return
+
+    let deleteAllInGroup = false
+    if (todo.groupIdentifier) {
+      const choice = confirm("Denna uppgift tillhör en grupp. Vill du radera den för ALLA medlemmar?\n\n(OK = Alla, Avbryt = Endast dig)")
+      if (choice) deleteAllInGroup = true
+      else if (!confirm("Vill du radera uppgiften för dig själv?")) return
+    } else {
+      if (!confirm("Vill du radera uppgiften?")) return
+    }
+
     const originalTodos = [...todos]
-    setTodos(prev => prev.filter(t => t.id !== todoId))
-    const result = await deleteTodo(todoId)
+    if (deleteAllInGroup) {
+      setTodos(prev => prev.filter(t => t.groupIdentifier !== todo.groupIdentifier))
+    } else {
+      setTodos(prev => prev.filter(t => t.id !== todo.id))
+    }
+
+    const result = await deleteTodo(todo.id, deleteAllInGroup)
     if (!result.success) {
       setTodos(originalTodos)
-      alert("Kunde inte radera uppgiften.")
+      alert(result.error || "Kunde inte radera uppgiften.")
     }
   }
 
@@ -144,7 +164,7 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
       Titel: t.title,
       Datum: t.date,
       Starttid: t.time || "Ingen tid",
-      Sluttid: t.endTime || "-", // LAGT TILL I EXPORT
+      Sluttid: t.endTime || "-",
       Status: t.completed ? "Klar" : "Ej klar",
       Upprepning: t.recurrence
     }));
@@ -171,19 +191,20 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
   const shouldShowTodo = (todo: Todo, targetDate: Date) => {
     const normalizedTarget = startOfDay(targetDate)
     const todoStartDate = startOfDay(parseISO(todo.date))
-    const targetDateStr = format(normalizedTarget, "yyyy-MM-dd")
+    const interval = todo.interval || 1
 
     if (normalizedTarget < todoStartDate) return false
-    if (todo.recurrence === "NONE") return todo.date === targetDateStr
+    if (todo.recurrence === "NONE") return format(normalizedTarget, "yyyy-MM-dd") === todo.date
 
     if (todo.recurrence === "DAILY") {
       const diff = differenceInDays(normalizedTarget, todoStartDate)
-      return diff % todo.interval === 0
+      return diff % interval === 0
     }
 
     if (todo.recurrence === "WEEKLY") {
       const weeksDiff = differenceInWeeks(normalizedTarget, todoStartDate)
-      if (weeksDiff % todo.interval !== 0) return false
+      if (weeksDiff % interval !== 0) return false
+
       if (todo.daysOfWeek) {
         const dayOfWeek = getDay(normalizedTarget)
         const adjustedDay = dayOfWeek === 0 ? 7 : dayOfWeek
@@ -194,12 +215,12 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
 
     if (todo.recurrence === "MONTHLY") {
       const monthsDiff = differenceInMonths(normalizedTarget, todoStartDate)
-      return monthsDiff % todo.interval === 0 && normalizedTarget.getDate() === todoStartDate.getDate()
+      return monthsDiff % interval === 0 && normalizedTarget.getDate() === todoStartDate.getDate()
     }
 
     if (todo.recurrence === "YEARLY") {
       const yearsDiff = differenceInYears(normalizedTarget, todoStartDate)
-      return yearsDiff % todo.interval === 0 &&
+      return yearsDiff % interval === 0 &&
              normalizedTarget.getDate() === todoStartDate.getDate() &&
              normalizedTarget.getMonth() === todoStartDate.getMonth()
     }
@@ -208,7 +229,6 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
 
   return (
     <div className="flex flex-col h-full w-full bg-background text-foreground">
-      {/* HEADER */}
       <div className="flex flex-col md:flex-row items-center justify-between p-4 border-b bg-muted/20 gap-4">
         <div className="flex items-center gap-4">
           <div className="flex flex-col">
@@ -248,7 +268,6 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
         </div>
       </div>
 
-      {/* KALENDER GRID */}
       <div className={cn(
         "grid flex-1 overflow-auto bg-border gap-[1px]",
         view === "week" ? "grid-cols-1 md:grid-cols-7" : "grid-cols-7"
@@ -307,7 +326,7 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
                   >
                     {!isReadOnly ? (
                       <button
-                        onClick={(e) => handleToggle(e, todo.id, todo.completed)}
+                        onClick={(e) => handleToggle(e, todo)}
                         className={cn(
                           "mt-0.5 w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors",
                           todo.completed ? "bg-green-600 border-green-600 text-white" : "bg-white/80 border-black/10 dark:bg-black/20"
@@ -322,7 +341,6 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1 opacity-70 italic mb-0.5 text-[9px]">
                         <Clock className="h-2.5 w-2.5" />
-                        {/* VISNING AV TIDSSPANN */}
                         <span>{todo.time || "Ingen tid"}</span>
                         {todo.endTime && (
                           <>
@@ -339,7 +357,7 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
 
                     {!isReadOnly && (
                       <button
-                        onClick={(e) => handleDelete(e, todo.id)}
+                        onClick={(e) => handleDelete(e, todo)}
                         className="opacity-50 group-hover/todo:opacity-100 transition-opacity p-1 hover:text-red-500 rounded bg-background/20"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -363,7 +381,6 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
         })}
       </div>
 
-      {/* EXPORT-SEKTION */}
       <div className="p-4 border-t bg-muted/10 flex items-center justify-center gap-4">
         <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Exportera:</span>
         <Button
@@ -386,12 +403,13 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
         </Button>
       </div>
 
-      {/* DIALOGS */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Ny uppgift</DialogTitle>
-            <DialogDescription>Planera in något för {selectedDate}.</DialogDescription>
+            <DialogDescription>
+              Fyll i detaljerna för att skapa en ny planering den {selectedDate}.
+            </DialogDescription>
           </DialogHeader>
           {selectedDate && currentUserId && (
             <TodoForm
@@ -407,7 +425,9 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Redigera planering</DialogTitle>
-            <DialogDescription>Ändra detaljer för din uppgift.</DialogDescription>
+            <DialogDescription>
+              Här kan du ändra tid, färg eller radera uppgiften för dig eller gruppen.
+            </DialogDescription>
           </DialogHeader>
           {editingTodo && (
             <EditTodoForm

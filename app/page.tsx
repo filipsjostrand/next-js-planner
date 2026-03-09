@@ -33,13 +33,14 @@ interface PrismaTodo {
   title: string;
   date: string;
   time: string | null;
-  endTime: string | null; // TILLAGD: Berättar för TS att detta fält finns i DB
+  endTime: string | null;
   color: string;
   completed: boolean;
   recurrence: string;
   interval: number;
   daysOfWeek: string | null;
   userId: string;
+  groupIdentifier?: string | null;
 }
 
 interface GroupMember {
@@ -88,6 +89,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     }) as Promise<PostIt[]>
   ]);
 
+  // HÄR SKER RÄTTNINGEN: Alla fält i Todo-interfacet måste inkluderas
   const serializedTodos: Todo[] = (todosRaw || []).map((todo: PrismaTodo): Todo => {
     const dateString = todo.date ? todo.date.split('T')[0] : "";
 
@@ -100,13 +102,14 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       title: todo.title,
       date: dateString,
       time: todo.time,
-      endTime: todo.endTime, // TILLAGD: Skickar med värdet till komponenten
+      endTime: todo.endTime, // Denna saknades och orsakade byggfelet!
       color: todo.color,
       completed: todo.completed,
       recurrence: recurrence,
       interval: todo.interval,
       daysOfWeek: todo.daysOfWeek,
-      userId: todo.userId
+      userId: todo.userId,
+      groupIdentifier: todo.groupIdentifier || null
     };
   });
 
