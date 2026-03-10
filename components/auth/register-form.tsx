@@ -98,13 +98,13 @@ export function RegisterForm() {
               name="name"
               render={({ field }) => (
                 <FormItem className="space-y-1">
-                  <FormLabel className="text-xs font-bold uppercase text-slate-500 ml-1">Namn</FormLabel>
+                  <FormLabel className="text-xs font-bold uppercase text-gray-600 ml-1">Namn</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="Ditt namn"
                       {...field}
                       disabled={isPending}
-                      className="rounded-xl h-11 focus-visible:ring-primary"
+                      className="rounded-xl h-11 focus-visible:ring-primary border-gray-500"
                     />
                   </FormControl>
                   <FormMessage />
@@ -117,7 +117,7 @@ export function RegisterForm() {
               name="email"
               render={({ field }) => (
                 <FormItem className="space-y-1">
-                  <FormLabel className="text-xs font-bold uppercase text-slate-500 ml-1">E-post</FormLabel>
+                  <FormLabel className="text-xs font-bold uppercase text-gray-600 ml-1">E-post</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="namn@exempel.se"
@@ -137,15 +137,15 @@ export function RegisterForm() {
               name="groupName"
               render={({ field }) => (
                 <FormItem className="space-y-1 pt-1">
-                  <FormLabel className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500 ml-1">
+                  <FormLabel className="flex items-center gap-2 text-xs font-bold uppercase text-gray-600 ml-1">
                     <Users className="h-3 w-3 text-primary" />
-                    Gruppnamn <span className="font-normal lowercase opacity-70">(Valfritt)</span>
+                    Gruppnamn <span className="font-normal lowercase opacity-70 text-gray-600">(Valfritt)</span>
                   </FormLabel>
                   <FormControl>
                     <Input
                       placeholder="Välj något..."
                       disabled={isPending}
-                      className="rounded-xl h-11 focus-visible:ring-primary"
+                      className="rounded-xl h-11 focus-visible:ring-primary border-gray-500"
                       {...field}
                       value={field.value ?? ""}
                     />
@@ -163,7 +163,7 @@ export function RegisterForm() {
               name="password"
               render={({ field }) => (
                 <FormItem className="space-y-1">
-                  <FormLabel className="text-xs font-bold uppercase text-slate-500 ml-1">Lösenord</FormLabel>
+                  <FormLabel className="text-xs font-bold uppercase text-gray-600 ml-1">Lösenord</FormLabel>
                   <FormControl>
                     <div className="relative">
                       <Input
@@ -176,7 +176,7 @@ export function RegisterForm() {
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-slate-600 transition-colors"
                         disabled={isPending}
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

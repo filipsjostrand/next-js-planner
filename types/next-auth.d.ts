@@ -5,14 +5,14 @@ declare module "next-auth" {
     user: {
       id: string
       role: "ADMIN" | "USER" | "GUEST"
-      groupId: string | null
+      groupId?: string | null // <-- Lade till ?
     } & DefaultSession["user"]
   }
 
   interface User {
     id: string
     role: "ADMIN" | "USER" | "GUEST"
-    groupId: string | null
+    groupId?: string | null // <-- Lade till ?
   }
 }
 
@@ -20,6 +20,6 @@ declare module "next-auth/jwt" {
   interface JWT {
     id: string
     role: "ADMIN" | "USER" | "GUEST"
-    groupId: string | null
+    groupId?: string | null // <-- Lade till ?
   }
 }
