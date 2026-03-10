@@ -18,9 +18,13 @@ async function main() {
   const adminPassword = process.env.ADMIN_PASSWORD || "Plan1337!";
 
   const guestEmail = "guest-kallner@outlook.com";
-  const guestPassword = "KallnerGuest2026"; // Detta matchar knappen i din login-sida
+  const guestPassword = "KallnerGuest2026";
+
+  const externalEmail = "grannen@example.com";
+  const externalPassword = "Lösenord123";
 
   console.log("Rensar gammal data...");
+  // Viktigt: Rensa i rätt ordning pga foreign key constraints
   await prisma.postIt.deleteMany();
   await prisma.todo.deleteMany();
   await prisma.user.deleteMany();
@@ -32,7 +36,13 @@ async function main() {
     data: { name: "Kallner" },
   });
 
-  // 2. Skapa Admin-användaren (Kallner Admin)
+  // 2. Skapa en extern grupp "Grannar" (för att testa filtrering)
+  console.log("Skapar gruppen Grannar...");
+  const externalGroup = await prisma.group.create({
+    data: { name: "Grannar" },
+  });
+
+  // 3. Skapa Admin-användaren (Kallner Admin)
   console.log("Skapar admin...");
   const hashedAdminPassword = await bcrypt.hash(adminPassword, 10);
 
@@ -42,14 +52,14 @@ async function main() {
       name: "Kallner Admin",
       password: hashedAdminPassword,
       role: "ADMIN",
-      group: {
+      groups: {
         connect: { id: mainGroup.id }
       }
     },
   });
   console.log(`✅ Admin skapad: ${admin.name}`);
 
-  // 3. Skapa Gäst-användaren (guest-kallner@outlook.com)
+  // 4. Skapa Gäst-användaren (guest-kallner@outlook.com)
   console.log("Skapar gästkonto...");
   const hashedGuestPassword = await bcrypt.hash(guestPassword, 10);
 
@@ -59,22 +69,42 @@ async function main() {
       name: "Gäst (Kallner)",
       password: hashedGuestPassword,
       role: "GUEST",
-      group: {
+      groups: {
         connect: { id: mainGroup.id }
       }
     },
   });
   console.log(`✅ Gästkonto skapat: ${guest.email}`);
 
+  // 5. Skapa en Extern användare som INTE tillhör Kallner-gruppen
+  console.log("Skapar extern användare...");
+  const hashedExternalPassword = await bcrypt.hash(externalPassword, 10);
+
+  const externalUser = await prisma.user.create({
+    data: {
+      email: externalEmail,
+      name: "Grannen Grön",
+      password: hashedExternalPassword,
+      role: "USER",
+      groups: {
+        connect: { id: externalGroup.id } // Denna person är bara med i Grannar-gruppen
+      }
+    },
+  });
+  console.log(`✅ Extern användare skapad: ${externalUser.name}`);
+
   console.log("-----------------------------------------");
   console.log("🏁 SEEDING SLUTFÖRD!");
+  console.log("-----------------------------------------");
+  console.log(`Logga in som Admin/Gäst: Du ska SE varandra i listan.`);
+  console.log(`Logga in som ${externalEmail}: Du ska INTE se Kallner-familjen.`);
   console.log("-----------------------------------------");
 }
 
 main()
   .then(async () => {
     await prisma.$disconnect();
-    await pool.end(); // Stänger poolen för att scriptet ska avslutas snyggt
+    await pool.end();
   })
   .catch(async (e) => {
     console.error("❌ SEEDING MISSLYCKADES:");

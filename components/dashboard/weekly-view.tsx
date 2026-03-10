@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   addDays,
   format,
@@ -35,7 +35,11 @@ import {
   RefreshCw,
   Eye,
   FileSpreadsheet,
-  FileText
+  FileText,
+  Upload,
+  Loader2,
+  AlertCircle,
+  FileDown
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -46,11 +50,12 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog"
 import { TodoForm } from "./todo-form"
 import { EditTodoForm } from "./edit-todo-form"
 import { ModeToggle } from "@/components/mode-toggle"
-import { toggleTodo, deleteTodo } from "@/app/actions/todo"
+import { toggleTodo, deleteTodo, importTodos } from "@/app/actions/todo"
 import * as XLSX from "xlsx"
 
 export interface Todo {
@@ -68,10 +73,18 @@ export interface Todo {
   groupIdentifier?: string | null
 }
 
+interface ImportedTodo {
+  completed: boolean
+  date: string
+  time: string | null
+  title: string
+}
+
 interface WeeklyViewProps {
   initialTodos: Todo[]
   isReadOnly?: boolean
   currentUserId?: string
+  groups?: { id: string, name: string }[]
 }
 
 const getColorClass = (color: string) => {
@@ -85,13 +98,18 @@ const getColorClass = (color: string) => {
   }
 }
 
-export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserId }: WeeklyViewProps) {
+export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserId, groups = [] }: WeeklyViewProps) {
   const [view, setView] = useState<"week" | "month">("week")
   const [currentDate, setCurrentDate] = useState(new Date())
   const [isOpen, setIsOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null)
   const [todos, setTodos] = useState<Todo[]>(initialTodos)
+
+  const [isImporting, setIsImporting] = useState(false)
+  const [importConfirmOpen, setImportConfirmOpen] = useState(false)
+  const [pendingImportData, setPendingImportData] = useState<ImportedTodo[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setTodos(initialTodos)
@@ -160,23 +178,26 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
   }
 
   const handleExport = (formatType: 'txt' | 'excel') => {
-    const dataToExport = todos.map(t => ({
-      Titel: t.title,
-      Datum: t.date,
-      Starttid: t.time || "Ingen tid",
-      Sluttid: t.endTime || "-",
-      Status: t.completed ? "Klar" : "Ej klar",
-      Upprepning: t.recurrence
-    }));
-
     if (formatType === 'excel') {
+      const dataToExport = todos.map(t => ({
+        Titel: t.title,
+        Datum: t.date,
+        Starttid: t.time || "Ingen tid",
+        Sluttid: t.endTime || "-",
+        Status: t.completed ? "Klar" : "Ej klar",
+        Upprepning: t.recurrence
+      }));
       const worksheet = XLSX.utils.json_to_sheet(dataToExport);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Planering");
       XLSX.writeFile(workbook, `Planering_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
     } else {
-      const txtContent = dataToExport
-        .map(t => `[${t.Status}] ${t.Datum} (${t.Starttid}${t.Sluttid !== "-" ? " - " + t.Sluttid : ""}): ${t.Titel}`)
+      const txtContent = todos
+        .map(t => {
+          const status = t.completed ? "[Klar]" : "[Ej klar]";
+          const timeStr = t.time ? ` (${t.time}${t.endTime ? " - " + t.endTime : ""})` : "";
+          return `${status} ${t.date}${timeStr}: ${t.title}`;
+        })
         .join("\n");
 
       const blob = new Blob([txtContent], { type: "text/plain" });
@@ -185,7 +206,77 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
       link.href = url;
       link.download = `Planering_${format(new Date(), "yyyy-MM-dd")}.txt`;
       link.click();
+      URL.revokeObjectURL(url);
     }
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const text = evt.target?.result as string;
+        const lines = text.split('\n').filter(line => line.trim() !== '');
+
+        const importedData: ImportedTodo[] = lines.map(line => {
+          const regex = /^\[(.*?)\]\s*(\d{4}-\d{2}-\d{2})(?:\s*\((.*?)\))?:\s*(.*)$/;
+          const match = line.match(regex);
+
+          if (match) {
+            const statusStr = match[1].toLowerCase();
+            return {
+              completed: statusStr.includes("klar") && !statusStr.includes("ej"),
+              date: match[2],
+              time: match[3]?.split(' - ')[0] || null,
+              title: match[4].trim()
+            };
+          }
+          return null;
+        }).filter((item): item is ImportedTodo => item !== null);
+
+        if (importedData.length > 0) {
+          setPendingImportData(importedData);
+          setImportConfirmOpen(true);
+        } else {
+          alert("Ingen giltig data hittades i filen.");
+        }
+      } catch (err) {
+        alert("Kunde inte läsa filen.");
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  const executeImport = async () => {
+    setIsImporting(true);
+    try {
+      const res = await importTodos(pendingImportData);
+      if (res.success) {
+        setImportConfirmOpen(false);
+        setPendingImportData([]);
+      } else {
+        alert(res.error || "Fel vid import.");
+      }
+    } catch (err) {
+      alert("Ett tekniskt fel uppstod.");
+    } finally {
+      setIsImporting(false);
+    }
+  }
+
+  const downloadTemplate = () => {
+    const template = `[Ej klar] 2026-03-10 (12:00): Exempel på uppgift\n[Klar] 2026-03-11: En uppgift utan tid`;
+    const blob = new Blob([template], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "mall.txt";
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   const shouldShowTodo = (todo: Todo, targetDate: Date) => {
@@ -229,6 +320,8 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
 
   return (
     <div className="flex flex-col h-full w-full bg-background text-foreground">
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".txt" className="hidden" />
+
       <div className="flex flex-col md:flex-row items-center justify-between p-4 border-b bg-muted/20 gap-4">
         <div className="flex items-center gap-4">
           <div className="flex flex-col">
@@ -381,7 +474,21 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
         })}
       </div>
 
-      <div className="p-4 border-t bg-muted/10 flex items-center justify-center gap-4">
+      <div className="p-4 border-t bg-muted/10 flex flex-wrap items-center justify-center gap-4">
+        <div className="flex items-center gap-4 border-r pr-4">
+           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Hantera:</span>
+           <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isReadOnly}
+            className="h-9 px-4 text-xs font-bold gap-2 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-colors"
+          >
+            <Upload className="h-4 w-4 text-blue-600" />
+            Importera (.txt)
+          </Button>
+        </div>
+
         <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Exportera:</span>
         <Button
           variant="outline"
@@ -407,16 +514,10 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Ny uppgift</DialogTitle>
-            <DialogDescription>
-              Fyll i detaljerna för att skapa en ny planering den {selectedDate}.
-            </DialogDescription>
+            <DialogDescription>Skapa en ny planering den {selectedDate}.</DialogDescription>
           </DialogHeader>
           {selectedDate && currentUserId && (
-            <TodoForm
-              date={selectedDate}
-              userId={currentUserId}
-              onSuccess={() => setIsOpen(false)}
-            />
+            <TodoForm date={selectedDate} userId={currentUserId} groups={groups} onSuccess={() => setIsOpen(false)} />
           )}
         </DialogContent>
       </Dialog>
@@ -425,16 +526,51 @@ export function WeeklyView({ initialTodos = [], isReadOnly = false, currentUserI
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Redigera planering</DialogTitle>
-            <DialogDescription>
-              Här kan du ändra tid, färg eller radera uppgiften för dig eller gruppen.
+          </DialogHeader>
+          {editingTodo && <EditTodoForm todo={editingTodo} onSuccess={() => setEditingTodo(null)} />}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importConfirmOpen} onOpenChange={setImportConfirmOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-blue-600 mb-2">
+              <AlertCircle className="h-5 w-5" />
+              <DialogTitle>Bekräfta import</DialogTitle>
+            </div>
+            {/* FIX: Använder asChild för att undvika p-inuti-p fel */}
+            <DialogDescription asChild>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Vi hittade <strong>{pendingImportData.length}</strong> uppgifter i filen.
+                </p>
+                <div className="bg-slate-50 dark:bg-slate-500 p-3 rounded text-xs font-mono max-h-[150px] overflow-y-auto border">
+                  {pendingImportData.slice(0, 5).map((d, i) => (
+                    <div key={i} className="mb-1 opacity-70">
+                      {d.completed ? "[Klar]" : "[Ej klar]"} {d.date}: {d.title}
+                    </div>
+                  ))}
+                  {pendingImportData.length > 5 && (
+                    <div className="italic mt-1 opacity-60">
+                      ...och {pendingImportData.length - 5} till
+                    </div>
+                  )}
+                </div>
+              </div>
             </DialogDescription>
           </DialogHeader>
-          {editingTodo && (
-            <EditTodoForm
-              todo={editingTodo}
-              onSuccess={() => setEditingTodo(null)}
-            />
-          )}
+          <div className="flex justify-start">
+             <Button variant="link" size="sm" onClick={downloadTemplate} className="text-[10px] h-auto p-0 gap-1 text-muted-foreground">
+                <FileDown className="h-3 w-3" /> Ladda ner format-mall
+             </Button>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setImportConfirmOpen(false)} disabled={isImporting}>Avbryt</Button>
+            <Button onClick={executeImport} disabled={isImporting} className="bg-blue-600 hover:bg-blue-700 text-white">
+              {isImporting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
+              Importera nu
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

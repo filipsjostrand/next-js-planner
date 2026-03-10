@@ -3,22 +3,18 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { WeeklyView, type Todo } from "@/components/dashboard/weekly-view";
 import { PostItGrid } from "@/components/dashboard/post-it-grid";
-import { LogoutButton } from "@/components/auth/logout-button";
 import { Button } from "@/components/ui/button";
 import { UserSelector } from "@/components/dashboard/user-selector";
 import { AddTodoButton } from "@/components/dashboard/add-todo-button";
 import {
   StickyNote,
-  Calendar as CalendarIcon,
-  User as UserIcon,
-  ShieldAlert,
-  ShieldCheck
+  Users,
+  ArrowRight
 } from "lucide-react";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-// --- TYPER ---
 interface PostIt {
   id: string;
   content: string;
@@ -43,11 +39,6 @@ interface PrismaTodo {
   groupIdentifier?: string | null;
 }
 
-interface GroupMember {
-  id: string;
-  name: string | null;
-}
-
 interface HomePageProps {
   searchParams: Promise<{ user?: string }>;
 }
@@ -62,26 +53,43 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
   const loggedInUserId = session.user.id as string;
   const userRole = (session.user as { role?: string }).role;
-  const userGroupId = (session.user as { groupId?: string }).groupId;
 
+  // 1. Hämta den inloggade användaren och dess grupper
+  const currentUserData = await db.user.findUnique({
+    where: { id: loggedInUserId },
+    include: {
+      groups: {
+        select: { id: true, name: true }
+      }
+    }
+  });
+
+  const userGroups = currentUserData?.groups || [];
+  const groupIds = userGroups.map(g => g.id);
   const viewUserId = resolvedParams.user || loggedInUserId;
 
   const isReadOnly = userRole === "GUEST";
-  const isAdmin = userRole === "ADMIN";
   const isViewingOthers = viewUserId !== loggedInUserId;
 
-  const [groupMembers, todosRaw, postItsRaw] = await Promise.all([
-    db.user.findMany({
-      where: { groupId: userGroupId || "" },
-      select: { id: true, name: true }
-    }) as Promise<GroupMember[]>,
+  // 2. Hämta data parallellt
+  const [groupMembersRaw, todosRaw, postItsRaw] = await Promise.all([
+    groupIds.length > 0
+      ? db.user.findMany({
+          where: {
+            groups: { some: { id: { in: groupIds } } }
+          },
+          select: {
+            id: true,
+            name: true,
+            groups: { select: { name: true } }
+          },
+          orderBy: { name: 'asc' }
+        })
+      : Promise.resolve([]),
 
     db.todo.findMany({
       where: { userId: viewUserId },
-      orderBy: [
-        { date: 'asc' },
-        { time: 'asc' }
-      ]
+      orderBy: [{ date: 'asc' }, { time: 'asc' }]
     }) as Promise<PrismaTodo[]>,
 
     db.postIt.findMany({
@@ -89,10 +97,16 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     }) as Promise<PostIt[]>
   ]);
 
-  // HÄR SKER RÄTTNINGEN: Alla fält i Todo-interfacet måste inkluderas
+  // Transformera medlemmar för UserSelector
+  const groupMembers = groupMembersRaw.map(m => ({
+    id: m.id,
+    name: m.name,
+    groupNames: m.groups.map(g => g.name).join(", ")
+  }));
+
+  // 3. Serialisera todos
   const serializedTodos: Todo[] = (todosRaw || []).map((todo: PrismaTodo): Todo => {
     const dateString = todo.date ? todo.date.split('T')[0] : "";
-
     const recurrence = (["NONE", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(todo.recurrence)
       ? todo.recurrence
       : "NONE") as RecurrenceType;
@@ -102,7 +116,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       title: todo.title,
       date: dateString,
       time: todo.time,
-      endTime: todo.endTime, // Denna saknades och orsakade byggfelet!
+      endTime: todo.endTime,
       color: todo.color,
       completed: todo.completed,
       recurrence: recurrence,
@@ -116,71 +130,60 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const currentViewedUserName = groupMembers.find(m => m.id === viewUserId)?.name || session.user.name;
 
   return (
-    <div className="flex flex-col w-full min-h-screen bg-yellow-100/50 text-slate-900">
-      <nav className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md px-4 py-3">
-        <div className="max-w-[1600px] mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2 font-bold text-xl italic">
-            <div className="bg-primary p-1.5 rounded-lg text-white">
-              <CalendarIcon className="h-5 w-5" />
-            </div>
-            <span>Källner Planering</span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {isAdmin && (
-              <Link href="/admin">
-                <Button variant="ghost" size="sm" className="gap-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50">
-                  <ShieldCheck className="h-4 w-4" />
-                  Admin
-                </Button>
-              </Link>
-            )}
-
-            {isReadOnly && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-amber-700 text-xs font-bold">
-                <ShieldAlert className="h-3 w-3" /> GÄSTLÄGE
-              </div>
-            )}
-
-            <Link href="/settings" className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 transition-colors rounded-full text-sm font-medium cursor-pointer">
-              <UserIcon className="h-4 w-4 text-slate-400" />
-              {session.user.name}
-            </Link>
-
-            <LogoutButton />
-          </div>
-        </div>
-      </nav>
-
+    <div className="flex flex-col w-full min-h-screen bg-yellow-100/30 text-slate-900">
       <main className="p-4 md:p-8 max-w-[1600px] mx-auto w-full space-y-8">
+
+        {/* INFO-RUTOR OM MAN INTE HAR EN GRUPP */}
+        {userGroups.length === 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="bg-blue-500 p-3 rounded-xl text-white">
+                <Users className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-blue-900">Du tillhör ingen grupp än</h3>
+                <p className="text-blue-700 text-sm">Gå med i din familjs grupp för att se andras planering.</p>
+              </div>
+            </div>
+            <Button asChild className="bg-blue-600 hover:bg-blue-700 rounded-xl transition-all active:scale-95">
+              <Link href="/settings" className="flex items-center gap-2">
+                Gå till inställningar <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        )}
+
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 text-balance">
               {isViewingOthers ? `Planering: ${currentViewedUserName}` : "Min Planering"}
             </h1>
           </div>
 
           <div className="flex items-center gap-3">
             <UserSelector
-              members={groupMembers.map(m => ({ id: m.id, name: m.name || "Namnlös" }))}
+              members={groupMembers}
               currentViewId={viewUserId}
               loggedInUserId={loggedInUserId}
             />
 
             {!isReadOnly && (
-              <AddTodoButton userId={viewUserId} />
+              <AddTodoButton userId={viewUserId} groups={userGroups} />
             )}
           </div>
         </div>
 
-        <div className="bg-mist-300 rounded-2xl border border-slate-200 shadow-xl overflow-hidden min-h-[600px] flex flex-col">
+        {/* KALENDERVY */}
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden min-h-[600px] flex flex-col">
           <WeeklyView
             initialTodos={serializedTodos}
             isReadOnly={isReadOnly}
             currentUserId={viewUserId}
+            groups={userGroups}
           />
         </div>
 
+        {/* POST-IT SEKTION */}
         <section className="space-y-6 pt-10">
           <div className="flex items-center gap-4 border-b border-slate-200 pb-4">
             <div className="bg-yellow-400 p-3 rounded-2xl shadow-md">

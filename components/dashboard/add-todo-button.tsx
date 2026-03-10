@@ -16,37 +16,50 @@ import { useRouter } from "next/navigation"
 
 interface AddTodoButtonProps {
   userId: string
+  // Vi tar emot listan på grupper som användaren tillhör
+  groups?: { id: string, name: string }[]
 }
 
-export function AddTodoButton({ userId }: AddTodoButtonProps) {
+export function AddTodoButton({ userId, groups = [] }: AddTodoButtonProps) {
   const [open, setOpen] = useState(false)
   const router = useRouter()
 
-  // Standarddatum är idag när man klickar på huvudknappen
+  // Sätter standarddatumet till idag för nya uppgifter
   const today = new Date().toISOString().split('T')[0]
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="bg-primary hover:bg-primary/90 shadow-md">
+        <Button
+          size="sm"
+          className="bg-primary hover:bg-primary/90 shadow-md transition-all active:scale-95"
+        >
           <PlusCircle className="mr-2 h-4 w-4" /> Ny Uppgift
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+
+      <DialogContent className="sm:max-w-[425px] rounded-2xl border-none shadow-2xl">
         <DialogHeader>
-          <DialogTitle>Skapa ny uppgift</DialogTitle>
-          <DialogDescription className="sr-only">
-            Fyll i detaljerna nedan för att lägga till en ny uppgift i din planering.
+          <DialogTitle className="text-2xl font-bold text-slate-500">
+            Skapa ny uppgift
+          </DialogTitle>
+          <DialogDescription className="text-slate-500">
+            Fyll i detaljerna nedan. Du kan välja att dela uppgiften med en av dina grupper.
           </DialogDescription>
         </DialogHeader>
-        <TodoForm
-          date={today}
-          userId={userId}
-          onSuccess={() => {
-            setOpen(false)
-            router.refresh()
-          }}
-        />
+
+        <div className="py-4">
+          <TodoForm
+            date={today}
+            userId={userId}
+            // Här skickar vi vidare grupperna så att TodoForm kan rendera en Select-box
+            groups={groups}
+            onSuccess={() => {
+              setOpen(false)
+              router.refresh()
+            }}
+          />
+        </div>
       </DialogContent>
     </Dialog>
   )

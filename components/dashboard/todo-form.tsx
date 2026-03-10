@@ -14,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
 
 type RecurrenceType = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
 
@@ -27,41 +26,22 @@ const COLORS = [
   { name: "Lila", bg: "bg-purple-100", border: "border-purple-300", value: "purple" },
 ]
 
-const DAYS = [
-  { id: "1", label: "Mån" },
-  { id: "2", label: "Tis" },
-  { id: "3", label: "Ons" },
-  { id: "4", label: "Tor" },
-  { id: "5", label: "Fre" },
-  { id: "6", label: "Lör" },
-  { id: "7", label: "Sön" },
-]
-
 interface TodoFormProps {
   date: string
   userId: string
+  groups: { id: string, name: string }[]
   onSuccess: () => void
 }
 
-export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps) {
+export function TodoForm({ date: initialDate, userId, groups, onSuccess }: TodoFormProps) {
   const [title, setTitle] = useState("")
   const [date, setDate] = useState(initialDate)
   const [startTime, setStartTime] = useState("12:00")
   const [endTime, setEndTime] = useState("")
   const [selectedColor, setSelectedColor] = useState("default")
-  const [allInGroup, setAllInGroup] = useState(false)
+  const [targetGroupId, setTargetGroupId] = useState<string>("none")
   const [isPending, setIsPending] = useState(false)
-
-  // Återkommande inställningar
   const [recurrence, setRecurrence] = useState<RecurrenceType>("NONE")
-  const [interval, setIntervalValue] = useState(1)
-  const [selectedDays, setSelectedDays] = useState<string[]>([])
-
-  const toggleDay = (dayId: string) => {
-    setSelectedDays(prev =>
-      prev.includes(dayId) ? prev.filter(d => d !== dayId) : [...prev, dayId]
-    )
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -75,10 +55,11 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
         endTime: endTime || null,
         color: selectedColor,
         recurrence,
-        interval: interval || 1,
-        daysOfWeek: selectedDays.length > 0 ? selectedDays.join(",") : null,
+        interval: 1,
+        daysOfWeek: null,
         userId,
-        allInGroup,
+        // Om 'none' skickar vi undefined, annars det valda grupp-ID:t
+        targetGroupId: targetGroupId === "none" ? undefined : targetGroupId,
       })
 
       if (result.success) {
@@ -87,7 +68,6 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
         alert(result.error || "Något gick fel")
       }
     } catch (error) {
-      console.error("Fel vid sparande:", error)
       alert("Ett tekniskt fel uppstod.")
     } finally {
       setIsPending(false)
@@ -95,34 +75,55 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 pt-2">
+    <form onSubmit={handleSubmit} className="space-y-6 pt-2 text-slate-900">
       <div className="space-y-4">
+        {/* TITEL */}
         <div className="space-y-2">
-          <Label htmlFor="title">Vad ska planeras?</Label>
+          <Label htmlFor="title" className="text-xs font-bold uppercase text-slate-500">Titel</Label>
           <Input
             id="title"
-            placeholder="Ex: Träna..."
+            placeholder="Ex: Träna, Handla, Möte..."
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             autoFocus
             required
+            className="focus-visible:ring-primary text-slate-500"
           />
         </div>
 
-        {/* GRUPP-VAL */}
-        <div className="flex items-center space-x-2 p-3 bg-primary/5 rounded-lg border border-primary/10 transition-colors hover:bg-primary/10">
-          <Checkbox
-            id="allInGroup"
-            checked={allInGroup}
-            onCheckedChange={(checked) => setAllInGroup(!!checked)}
-          />
-          <Label htmlFor="allInGroup" className="text-xs font-bold flex items-center gap-2 cursor-pointer select-none uppercase tracking-tight text-primary">
-            <Users className="h-3.5 w-3.5" /> Lägg till för alla i gruppen
+        {/* GRUPPVAL (Synliggör vem som ser uppgiften) */}
+        <div className="space-y-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
+          <Label className="text-[10px] font-bold flex items-center gap-2 uppercase tracking-tight text-slate-500 mb-1">
+            <Users className="h-3 w-3 text-primary" /> Delning & Synlighet
           </Label>
+          <Select value={targetGroupId} onValueChange={setTargetGroupId}>
+            <SelectTrigger className="bg-white h-9 text-xs border-slate-200">
+              <SelectValue placeholder="Välj vem som ser detta" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">🔒 Privat (Bara min kalender)</SelectItem>
+              {groups.length > 0 && (
+                <>
+                  <div className="px-2 py-1.5 text-[10px] font-semibold text-slate-400 uppercase">Dina Grupper</div>
+                  {groups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      👥 Grupp: {group.name}
+                    </SelectItem>
+                  ))}
+                </>
+              )}
+            </SelectContent>
+          </Select>
+          <p className="text-[10px] text-slate-400 italic px-1">
+            {targetGroupId === "none"
+              ? "Uppgiften skapas bara för dig."
+              : "Uppgiften kopieras ut till alla medlemmar i gruppen."}
+          </p>
         </div>
 
+        {/* DATUM */}
         <div className="space-y-2">
-          <Label htmlFor="date">Datum</Label>
+          <Label htmlFor="date" className="text-xs font-bold uppercase text-slate-500">Datum</Label>
           <div className="relative">
             <Input
               id="date"
@@ -130,40 +131,31 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
               value={date}
               onChange={(e) => setDate(e.target.value)}
               required
-              className="pl-9"
+              className="pl-9 focus-visible:ring-primary text-slate-500"
             />
             <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
           </div>
         </div>
 
+        {/* TID */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="startTime" className="flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5 text-muted-foreground" /> Starttid
+          <div className="space-y-2 text-slate-500">
+            <Label htmlFor="startTime" className="text-xs font-bold uppercase text-slate-500 flex items-center gap-1">
+              <Clock className="h-3 w-3 text-slate-500" /> Start
             </Label>
-            <Input
-              id="startTime"
-              type="time"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              required
-            />
+            <Input id="startTime" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="endTime" className="flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5 text-muted-foreground" /> Sluttid
+          <div className="space-y-2 text-slate-500">
+            <Label htmlFor="endTime" className="text-xs font-bold uppercase text-slate-500 flex items-center gap-1">
+              <Clock className="h-3 w-3 text-slate-500" /> Slut
             </Label>
-            <Input
-              id="endTime"
-              type="time"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-            />
+            <Input id="endTime" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
           </div>
         </div>
 
+        {/* FÄRGVAL */}
         <div className="space-y-2">
-          <Label>Färg</Label>
+          <Label className="text-xs font-bold uppercase text-slate-500">Färgmarkering</Label>
           <div className="flex flex-wrap gap-2 pt-1">
             {COLORS.map((color) => (
               <button
@@ -171,13 +163,14 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
                 type="button"
                 onClick={() => setSelectedColor(color.value)}
                 className={cn(
-                  "h-8 w-8 rounded-full border-2 transition-all flex items-center justify-center",
+                  "h-8 w-8 rounded-full border-2 transition-all flex items-center justify-center shadow-sm",
                   color.bg,
                   color.border,
                   selectedColor === color.value
-                    ? "ring-2 ring-primary ring-offset-2 scale-110 shadow-sm"
-                    : "opacity-70 hover:opacity-100"
+                    ? "ring-2 ring-primary ring-offset-2 scale-110 border-slate-600"
+                    : "opacity-80 hover:opacity-100 hover:scale-105"
                 )}
+                title={color.name}
               >
                 {selectedColor === color.value && <Check className="h-4 w-4 text-slate-900" />}
               </button>
@@ -185,82 +178,43 @@ export function TodoForm({ date: initialDate, userId, onSuccess }: TodoFormProps
           </div>
         </div>
 
-        {/* ÅTERKOMMANDE-SEKTION */}
-        <div className="p-4 bg-muted/30 rounded-lg border space-y-4">
-          <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground uppercase tracking-tight">
-            <RefreshCw className={cn("h-4 w-4", recurrence !== "NONE" && "animate-spin-slow")} /> Återkommande
+        {/* RECURRENCE */}
+        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
+          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-tight">
+            <RefreshCw className="h-3 w-3 text-primary" /> Återkommande
           </div>
-
-          <div className="space-y-3">
-            <Select value={recurrence} onValueChange={(value: RecurrenceType) => setRecurrence(value)}>
-              <SelectTrigger className="bg-background">
-                <SelectValue placeholder="Välj typ" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="NONE">Ingen upprepning</SelectItem>
-                <SelectItem value="DAILY">Varje dag</SelectItem>
-                <SelectItem value="WEEKLY">Varje vecka</SelectItem>
-                <SelectItem value="MONTHLY">Varje månad</SelectItem>
-                <SelectItem value="YEARLY">Varje år</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {recurrence !== "NONE" && (
-              <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                <div className="flex items-center gap-3">
-                  <Label className="text-xs font-semibold">Upprepa var:</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      min="1"
-                      max="99"
-                      className="w-16 h-8 text-center font-bold"
-                      value={interval}
-                      onChange={(e) => setIntervalValue(Math.max(1, parseInt(e.target.value) || 1))}
-                    />
-                    <span className="text-xs text-muted-foreground font-medium">
-                      {recurrence === "DAILY" ? (interval === 1 ? "dag" : "dagar") :
-                       recurrence === "WEEKLY" ? (interval === 1 ? "vecka" : "veckor") :
-                       recurrence === "MONTHLY" ? (interval === 1 ? "månad" : "månader") :
-                       (interval === 1 ? "år" : "år")}
-                    </span>
-                  </div>
-                </div>
-
-                {recurrence === "WEEKLY" && (
-                  <div className="space-y-2">
-                    <Label className="text-[10px] uppercase text-muted-foreground font-bold">På dagar:</Label>
-                    <div className="flex justify-between gap-1">
-                      {DAYS.map((day) => (
-                        <button
-                          key={day.id}
-                          type="button"
-                          onClick={() => toggleDay(day.id)}
-                          className={cn(
-                            "h-8 flex-1 rounded-md text-[10px] font-bold border transition-all shadow-sm",
-                            selectedDays.includes(day.id)
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "bg-background hover:bg-muted text-muted-foreground"
-                          )}
-                        >
-                          {day.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <Select value={recurrence} onValueChange={(value: RecurrenceType) => setRecurrence(value)}>
+            <SelectTrigger className="bg-white h-8 text-xs border-slate-200">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="NONE">Ingen upprepning</SelectItem>
+              <SelectItem value="DAILY">Varje dag</SelectItem>
+              <SelectItem value="WEEKLY">Varje vecka</SelectItem>
+              <SelectItem value="MONTHLY">Varje månad</SelectItem>
+              <SelectItem value="YEARLY">Varje år</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      <div className="flex justify-end gap-2 border-t pt-4">
-        <Button variant="outline" type="button" onClick={onSuccess} disabled={isPending}>
+      {/* KNAPPAR */}
+      <div className="flex justify-end gap-2 border-t border-slate-100 pt-5">
+        <Button
+          variant="ghost"
+          type="button"
+          onClick={onSuccess}
+          disabled={isPending}
+          className="h-10 text-xs text-slate-500 hover:bg-slate-100"
+        >
           Avbryt
         </Button>
-        <Button type="submit" disabled={isPending} className="font-bold min-w-[120px]">
-          {isPending ? "Sparar..." : "Spara planering"}
+        <Button
+          type="submit"
+          disabled={isPending}
+          className="h-10 text-xs font-bold px-8 shadow-md"
+        >
+          {isPending ? "Sparar..." : "Spara uppgift"}
         </Button>
       </div>
     </form>

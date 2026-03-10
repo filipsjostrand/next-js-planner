@@ -6,9 +6,9 @@ import { registerSchema } from "@/lib/validations/auth"
 import { z } from "zod"
 import { generateVerificationToken } from "@/lib/tokens"
 import { sendVerificationEmail } from "@/lib/mail"
+import { Prisma } from "@prisma/client"
 
 export async function register(values: z.infer<typeof registerSchema>) {
-  // 1. Validera fält på serversidan med Zod
   const validatedFields = registerSchema.safeParse(values)
   if (!validatedFields.success) {
     return { error: "Ogiltiga fält" }
@@ -17,7 +17,6 @@ export async function register(values: z.infer<typeof registerSchema>) {
   const { email, password, name, groupName, role } = validatedFields.data
 
   try {
-    // 2. Kontrollera om användaren redan finns (gör detta tidigt för att spara resurser)
     const existingUser = await db.user.findUnique({
       where: { email }
     })
@@ -26,47 +25,41 @@ export async function register(values: z.infer<typeof registerSchema>) {
       return { error: "E-postadressen används redan" }
     }
 
-    // 3. Hantera gruppen (Hämta eller skapa om den inte finns)
-    let existingGroup = await db.group.findFirst({
-      where: {
-        name: {
-          equals: groupName.trim(),
-          mode: "insensitive", // Gör sökningen okänslig för stora/små bokstäver
-        },
-      },
-    })
-
-    if (!existingGroup) {
-      existingGroup = await db.group.create({
-        data: {
-          name: groupName.trim(),
-        }
-      })
-    }
-
-    // 4. Hasha lösenordet
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    // 5. Skapa användaren i databasen
-    // Vi sätter emailVerified till null explicit för att blockera inloggning (enligt auth.ts)
-    await db.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        role: role as "USER" | "GUEST",
-        groupId: existingGroup.id,
-        emailVerified: null,
+    const userData: Prisma.UserCreateInput = {
+      name,
+      email,
+      password: hashedPassword,
+      role: (role as "USER" | "GUEST") || "USER",
+      emailVerified: null,
+    }
+
+    // Koppla till grupp ENDAST om ett namn faktiskt angetts och inte är tomt
+    if (groupName && groupName.trim() !== "") {
+      const trimmedGroupName = groupName.trim()
+
+      userData.groups = {
+        connectOrCreate: {
+          where: { name: trimmedGroupName },
+          create: { name: trimmedGroupName }
+        }
       }
+    }
+
+    // 1. Skapa användaren
+    await db.user.create({
+      data: userData
     })
 
-    // 6. Generera verifieringstoken
+    // 2. Generera token
     const verificationToken = await generateVerificationToken(email)
 
-    // 7. Skicka verifieringsmailet
-    // Kontrollera om din token-modell använder 'identifier' eller 'email'
+    // 3. Skicka mejl
+    // Vi använder 'email' direkt från de validerade fälten för att vara 100% säkra
+    // på att vi har en mottagare, ifall token-objektet har andra fältnamn (identifier/email).
     await sendVerificationEmail(
-      verificationToken.identifier || email,
+      email,
       verificationToken.token
     )
 
@@ -74,6 +67,6 @@ export async function register(values: z.infer<typeof registerSchema>) {
 
   } catch (error) {
     console.error("Register Error:", error)
-    return { error: "Något gick fel vid registreringen. Försök igen senare." }
+    return { error: "Något gick fel vid registreringen." }
   }
 }

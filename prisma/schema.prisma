@@ -1,23 +1,20 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider        = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
-// prisma/schema.prisma
-
+// model Group
+// Implicit many-to-many relation till User via tabellen _UserGroups
 model Group {
   id        String   @id @default(cuid())
-  name      String
-  users     User[]
+  name      String   @unique // Gjort unik för att underlätta "join by name"
+  users     User[]   @relation("UserGroups")
   createdAt DateTime @default(now())
 }
 
@@ -29,8 +26,10 @@ model User {
   password      String?
   name          String
   role          Role      @default(USER)
-  groupId   String?
-  group     Group?    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  // Många-till-många relation till grupper
+  groups        Group[]   @relation("UserGroups")
+
   todos         Todo[]
   postIts       PostIt[]
   createdAt     DateTime  @default(now())
@@ -70,13 +69,13 @@ enum RecurrenceType {
 model Todo {
   id              String         @id @default(cuid())
   title           String
-  date            String         // Startdatum
-  time            String?        // Starttid
-  endTime         String?        // Sluttid
+  date            String         // Startdatum (YYYY-MM-DD)
+  time            String?        // Starttid (HH:mm)
+  endTime         String?        // Sluttid (HH:mm)
   color           String         @default("default")
   completed       Boolean        @default(false)
 
-  // Håller ihop todos som skapats för hela gruppen
+  // Håller ihop todos som skapats för hela gruppen (logisk gruppering)
   groupIdentifier String?
 
   recurrence      RecurrenceType @default(NONE)
@@ -88,7 +87,6 @@ model Todo {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 }
-
 
 model PostIt {
   id        String   @id @default(cuid())

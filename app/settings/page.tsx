@@ -1,46 +1,100 @@
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
-import { ArrowLeft, AlertTriangle } from "lucide-react";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { GroupManager } from "@/components/settings/group-manager";
 import { TodoManager } from "@/components/settings/todo-manager";
+import { DeleteAccountSection } from "@/components/settings/delete-account-section";
 
 export default async function SettingsPage() {
   const session = await auth();
-  if (!session?.user) redirect("/login");
 
-  const userTodos = await db.todo.findMany({
-    where: { userId: session.user.id },
-    orderBy: { date: "desc" },
+  // 1. Säkerställ att användaren är inloggad
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
+  // 2. Hämta användaren, deras grupper och deras todos
+  const user = await db.user.findUnique({
+    where: { id: session.user.id },
+    include: {
+      groups: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      todos: {
+        orderBy: {
+          date: "asc"
+        }
+      }
+    },
   });
 
+  if (!user) return null;
+
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-8">
-      <div className="flex flex-col gap-2">
-        <Link href="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-fit">
-          <ArrowLeft className="h-4 w-4" /> Tillbaka till planeringen
-        </Link>
-        <h1 className="text-3xl font-bold italic tracking-tighter">Inställningar</h1>
+    <div className="max-w-4xl mx-auto p-6 space-y-8 pb-20">
+      {/* RUBRIK */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-500">Inställningar</h1>
+        <p className="text-muted-foreground">Hantera din profil, dina uppgifter och gruppanslutningar.</p>
       </div>
 
-      {/* SEKTION: HANTERA TODOS */}
-      <section className="bg-white rounded-xl border p-6 shadow-sm">
-        <TodoManager initialTodos={userTodos} />
-      </section>
+      <Separator />
 
-      {/* SEKTION: FARLIG ZON */}
-      <section className="bg-rose-50 border border-rose-200 rounded-xl p-6">
-        <h2 className="text-lg font-bold text-rose-800 mb-2 flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5" /> Farlig zon
-        </h2>
-        <p className="text-sm text-rose-700 mb-6">
-          När du raderar ditt konto tas all din data bort permanent. Detta inkluderar alla dina planerade uppgifter och anteckningar.
+      {/* PROFILSEKTION */}
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold text-slate-500">Min Profil</h2>
+        <div className="grid gap-6 sm:grid-cols-2">
+          <div className="grid gap-1">
+            <Label className="text-xs uppercase text-muted-foreground font-bold">Namn</Label>
+            <p className="text-lg font-medium text-slate-500">{user.name || "Inget namn"}</p>
+          </div>
+          <div className="grid gap-1">
+            <Label className="text-xs uppercase text-muted-foreground font-bold">E-post</Label>
+            <p className="text-lg font-medium text-slate-500">{user.email}</p>
+          </div>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* TODO-HANTERING */}
+      <div className="space-y-6">
+        <div className="bg-white border rounded-xl p-6 shadow-sm">
+          {/* Typen matchar nu korrekt, så ingen TS-directive behövs */}
+          <TodoManager initialTodos={user.todos} />
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* GRUPPHANTERING */}
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold text-slate-500">Hantera Grupper</h2>
+        <div className="bg-white border rounded-xl p-6 shadow-sm">
+          <GroupManager initialGroups={user.groups} />
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* FARLIG ZON */}
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold text-red-600">Farlig zon</h2>
+        <div className="bg-red-50/50 border border-red-100 rounded-xl p-6 shadow-sm">
+          <DeleteAccountSection />
+        </div>
+      </div>
+
+      <div className="pt-4 text-center">
+        <p className="text-xs text-muted-foreground italic">
+          Kallner Planering — Version 1.0
         </p>
-        <Button variant="destructive" className="font-bold">
-          Radera mitt konto permanent
-        </Button>
-      </section>
+      </div>
     </div>
   );
 }

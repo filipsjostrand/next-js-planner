@@ -3,6 +3,9 @@
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
+import bcrypt from "bcryptjs"
+import { RegisterValues } from "@/lib/validations/auth"
+import { Role } from "@prisma/client"
 
 /**
  * Hjälpfunktion för att kontrollera att den som anropar
@@ -11,6 +14,51 @@ import { revalidatePath } from "next/cache"
 async function isAdmin() {
   const session = await auth()
   return session?.user?.role === "ADMIN"
+}
+
+/**
+ * Skapar en ny användare direkt från admin-panelen.
+ */
+export async function adminAddUser(values: RegisterValues) {
+  if (!(await isAdmin())) {
+    return { error: "Obehörig åtkomst." }
+  }
+
+  const { email, password, name, groupName, role } = values
+
+  try {
+    const existingUser = await db.user.findUnique({ where: { email } })
+    if (existingUser) {
+      return { error: "E-postadressen används redan." }
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10)
+
+    await db.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        // Vi mappar strängen från formuläret till Prisma-enum
+        role: role as Role,
+        // Om groupName finns, koppla användaren till den gruppen (skapa om den inte finns)
+        ...(groupName && {
+          group: {
+            connectOrCreate: {
+              where: { name: groupName },
+              create: { name: groupName },
+            },
+          },
+        }),
+      },
+    })
+
+    revalidatePath("/admin")
+    return { success: "Användaren har skapats." }
+  } catch (error) {
+    console.error("Admin Add User Error:", error)
+    return { error: "Kunde inte skapa användaren." }
+  }
 }
 
 /**
