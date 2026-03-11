@@ -105,7 +105,7 @@ export function EditTodoForm({ todo, onSuccess }: EditTodoFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 pt-2 text-slate-900">
+    <form onSubmit={handleSubmit} className="space-y-6 pt-2 text-slate-500">
       <div className="space-y-4">
         {/* TITEL & STATUS */}
         <div className="flex gap-2 items-end">
@@ -120,7 +120,7 @@ export function EditTodoForm({ todo, onSuccess }: EditTodoFormProps) {
             onClick={handleToggleComplete}
             disabled={isPending}
           >
-            <CheckCircle2 className={cn("h-4 w-4 mr-2", todo.completed ? "text-white" : "text-slate-400")} />
+            <CheckCircle2 className={cn("h-4 w-4 mr-2", todo.completed ? "text-gray-500" : "text-slate-400")} />
             <span className="text-xs font-bold">{todo.completed ? "Klar" : "Klar?"}</span>
           </Button>
         </div>
@@ -158,13 +158,13 @@ export function EditTodoForm({ todo, onSuccess }: EditTodoFormProps) {
               <Label htmlFor="time" className="text-xs font-bold uppercase flex items-center gap-2">
                 <Clock className="h-3 w-3" /> Start
               </Label>
-              <Input id="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+              <Input id="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-35 h-9"/>
             </div>
             <div className="space-y-2">
               <Label htmlFor="endTime" className="text-xs font-bold uppercase flex items-center gap-2">
                 <Clock className="h-3 w-3" /> Slut
               </Label>
-              <Input id="endTime" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+              <Input id="endTime" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-35 h-9" />
             </div>
           </div>
         </div>
@@ -185,7 +185,7 @@ export function EditTodoForm({ todo, onSuccess }: EditTodoFormProps) {
                   selectedColor === color.value ? "ring-2 ring-primary ring-offset-2 scale-110" : "opacity-70 hover:opacity-100"
                 )}
               >
-                {selectedColor === color.value && <Check className="h-4 w-4 text-slate-900" />}
+                {selectedColor === color.value && <Check className="h-4 w-4 text-slate-500" />}
               </button>
             ))}
           </div>

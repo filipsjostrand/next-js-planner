@@ -174,7 +174,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         </div>
 
         {/* KALENDERVY */}
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden min-h-[600px] flex flex-col">
+        <div className="bg-white dark:bg-black rounded-3xl border border-slate-200 dark:border-gray-600 shadow-xl overflow-hidden min-h-[600px] flex flex-col">
           <WeeklyView
             initialTodos={serializedTodos}
             isReadOnly={isReadOnly}

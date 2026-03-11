@@ -42,6 +42,7 @@ export function TodoForm({ date: initialDate, userId, groups, onSuccess }: TodoF
   const [targetGroupId, setTargetGroupId] = useState<string>("none")
   const [isPending, setIsPending] = useState(false)
   const [recurrence, setRecurrence] = useState<RecurrenceType>("NONE")
+  const [interval, setIntervalValue] = useState(1) // Ny state för intervall
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -55,10 +56,9 @@ export function TodoForm({ date: initialDate, userId, groups, onSuccess }: TodoF
         endTime: endTime || null,
         color: selectedColor,
         recurrence,
-        interval: 1,
+        interval: interval || 1, // Skickar med det valda intervallet
         daysOfWeek: null,
         userId,
-        // Om 'none' skickar vi undefined, annars det valda grupp-ID:t
         targetGroupId: targetGroupId === "none" ? undefined : targetGroupId,
       })
 
@@ -91,13 +91,13 @@ export function TodoForm({ date: initialDate, userId, groups, onSuccess }: TodoF
           />
         </div>
 
-        {/* GRUPPVAL (Synliggör vem som ser uppgiften) */}
-        <div className="space-y-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
-          <Label className="text-[10px] font-bold flex items-center gap-2 uppercase tracking-tight text-slate-500 mb-1">
+        {/* GRUPPVAL */}
+        <div className="space-y-2 p-3 bg-gray-600 rounded-lg border border-slate-400">
+          <Label className="text-[10px] font-bold flex items-center gap-2 uppercase tracking-tight text-slate-400 mb-1">
             <Users className="h-3 w-3 text-primary" /> Delning & Synlighet
           </Label>
           <Select value={targetGroupId} onValueChange={setTargetGroupId}>
-            <SelectTrigger className="bg-white h-9 text-xs border-slate-200">
+            <SelectTrigger className="bg-white h-9 text-xs border-slate-400">
               <SelectValue placeholder="Välj vem som ser detta" />
             </SelectTrigger>
             <SelectContent>
@@ -143,13 +143,13 @@ export function TodoForm({ date: initialDate, userId, groups, onSuccess }: TodoF
             <Label htmlFor="startTime" className="text-xs font-bold uppercase text-slate-500 flex items-center gap-1">
               <Clock className="h-3 w-3 text-slate-500" /> Start
             </Label>
-            <Input id="startTime" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+            <Input id="startTime" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required className="w-35 h-9" />
           </div>
           <div className="space-y-2 text-slate-500">
             <Label htmlFor="endTime" className="text-xs font-bold uppercase text-slate-500 flex items-center gap-1">
               <Clock className="h-3 w-3 text-slate-500" /> Slut
             </Label>
-            <Input id="endTime" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+            <Input id="endTime" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-35 h-9" />
           </div>
         </div>
 
@@ -178,23 +178,51 @@ export function TodoForm({ date: initialDate, userId, groups, onSuccess }: TodoF
           </div>
         </div>
 
-        {/* RECURRENCE */}
-        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
-          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-tight">
+        {/* RECURRENCE & INTERVAL */}
+        <div className="p-3 bg-gray-600 rounded-lg border border-slate-400 space-y-3">
+          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-tight">
             <RefreshCw className="h-3 w-3 text-primary" /> Återkommande
           </div>
-          <Select value={recurrence} onValueChange={(value: RecurrenceType) => setRecurrence(value)}>
-            <SelectTrigger className="bg-white h-8 text-xs border-slate-200">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="NONE">Ingen upprepning</SelectItem>
-              <SelectItem value="DAILY">Varje dag</SelectItem>
-              <SelectItem value="WEEKLY">Varje vecka</SelectItem>
-              <SelectItem value="MONTHLY">Varje månad</SelectItem>
-              <SelectItem value="YEARLY">Varje år</SelectItem>
-            </SelectContent>
-          </Select>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1">
+              <Select value={recurrence} onValueChange={(value: RecurrenceType) => setRecurrence(value)}>
+                <SelectTrigger className="bg-gray-500 h-9 text-xs border-slate-400">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="NONE">Ingen upprepning</SelectItem>
+                  <SelectItem value="DAILY">Varje dag</SelectItem>
+                  <SelectItem value="WEEKLY">Varje vecka</SelectItem>
+                  <SelectItem value="MONTHLY">Varje månad</SelectItem>
+                  <SelectItem value="YEARLY">Varje år</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {recurrence !== "NONE" && (
+              <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
+                <Label className="text-[10px] font-bold uppercase text-slate-400">Var :</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="99"
+                  className="h-9 w-16 text-xs bg-gray-500"
+                  value={interval}
+                  onChange={(e) => setIntervalValue(Math.max(1, parseInt(e.target.value) || 1))}
+                />
+                <span className="text-[10px] font-bold text-slate-400 uppercase">
+                  {recurrence === "WEEKLY" ? "vecka" : recurrence === "DAILY" ? "dag" : "månad"}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {recurrence !== "NONE" && interval > 1 && (
+            <p className="text-[10px] text-primary font-medium italic px-1">
+              Uppgiften kommer skapas var {interval}:e {recurrence === "WEEKLY" ? "vecka" : recurrence === "DAILY" ? "dag" : "månad"}.
+            </p>
+          )}
         </div>
       </div>
 

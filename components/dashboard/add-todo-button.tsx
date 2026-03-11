@@ -40,7 +40,7 @@ export function AddTodoButton({ userId, groups = [] }: AddTodoButtonProps) {
 
       <DialogContent className="sm:max-w-[425px] rounded-2xl border-none shadow-2xl">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-slate-500">
+          <DialogTitle className="text-2xl font-bold text-slate-400">
             Skapa ny uppgift
           </DialogTitle>
           <DialogDescription className="text-slate-500">
