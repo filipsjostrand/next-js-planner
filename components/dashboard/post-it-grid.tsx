@@ -93,7 +93,7 @@ export function PostItGrid({ initialNotes, isReadOnly = false, viewUserId }: Pos
           <div
             key={note.id}
             className={cn(
-              "aspect-square p-4 shadow-xl transition-all flex flex-col group relative border-t-4 border-black/5",
+              "aspect-square p-4 dark:bg-amber-200 shadow-xl transition-all flex flex-col group relative border-t-4 border-black/5",
               note.color || "bg-yellow-200",
               !isReadOnly && "hover:scale-105",
               index % 2 === 0 ? "rotate-2" : "-rotate-1"
@@ -104,7 +104,7 @@ export function PostItGrid({ initialNotes, isReadOnly = false, viewUserId }: Pos
 
             <textarea
               className={cn(
-                "flex-1 bg-transparent border-none resize-none focus:outline-none text-sm font-medium text-slate-800 leading-tight placeholder:text-slate-400/50",
+                "flex-1 bg-transparent border-none resize-none focus:outline-none text-sm font-medium text-slate-800 leading-tight placeholder:text-black",
                 isReadOnly && "cursor-default"
               )}
               placeholder={isReadOnly ? "" : "Skriv något..."}
@@ -112,6 +112,7 @@ export function PostItGrid({ initialNotes, isReadOnly = false, viewUserId }: Pos
               onChange={(e) => handleTextChange(note.id, e.target.value, note.color)}
               spellCheck={false}
               readOnly={isReadOnly}
+
             />
 
             {!isReadOnly && (

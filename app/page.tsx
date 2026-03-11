@@ -191,7 +191,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             </div>
             <h2 className="text-2xl font-bold">Post-its ({currentViewedUserName})</h2>
           </div>
-          <div className="bg-slate-50/50 rounded-3xl p-6 border-2 border-dashed border-slate-200">
+          <div className="bg-slate-50/50 dark:bg-black rounded-3xl p-6 border-2 border-dashed border-slate-200">
             <PostItGrid
               initialNotes={postItsRaw}
               isReadOnly={isReadOnly}

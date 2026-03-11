@@ -33,7 +33,7 @@ export function Navbar() {
         {/* VÄNSTER SIDA: LOGO & NAVIGERING */}
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center space-x-2 transition-opacity hover:opacity-80 shrink-0">
-            <div className="bg-primary h-8 w-8 rounded-lg flex items-center justify-center shadow-sm">
+            <div className="bg-primary dark:bg-black  h-8 w-8 rounded-lg flex items-center justify-center shadow-sm">
               <LayoutDashboard className="h-5 w-5 text-white" />
             </div>
             <span className="hidden font-bold sm:inline-block text-xl tracking-tight text-slate-900">
